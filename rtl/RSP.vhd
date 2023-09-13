@@ -25,6 +25,7 @@ entity RSP is
       error_stall          : out std_logic;
       error_Fifo           : out std_logic;
       error_Addr           : out std_logic;
+      error_PCON           : out std_logic;
       
       bus_addr             : in  unsigned(19 downto 0); 
       bus_dataWrite        : in  std_logic_vector(31 downto 0);
@@ -144,8 +145,6 @@ architecture arch of RSP is
    );
    signal MEMSTATE : tMEMSTATE := MEM_IDLE;
    
-   signal dma_startnext             : std_logic := '0';
-   
    signal dma_store                 : std_logic := '0';
    
    signal fifoout_Wr_1              : std_logic := '0';
@@ -227,6 +226,7 @@ begin
          RSP2RDP_done   <= '0';
          
          error_Addr     <= '0';
+         error_PCON     <= '0';
          
          mem_address_a_1 <= mem_address_a;
          fifoout_Wr_1    <= fifoout_Wr;
@@ -279,7 +279,6 @@ begin
             MEMSTATE                   <= MEM_IDLE;
             
             DMASTATE                   <= DMA_IDLE;
-            dma_startnext              <= '0';
             fifoout_req                <= '0';
  
          elsif (ce = '1') then
@@ -428,6 +427,9 @@ begin
                   when x"80000" => 
                      SP_PC      <= unsigned(reg_dataWrite(11 downto 2)) & "00";   
                      PC_trigger <= '1';
+                     if (SP_STATUS_halt = '0') then
+                        error_PCON <= '1';
+                     end if;
                   when others => null;
                end case;
             end if;
@@ -575,60 +577,54 @@ begin
                   end if;
             
             end case;
-            
-            -- next DMA
-            if (bus_reg_req_write = '0' and SP_STATUS_dmafull = '1' and (SP_STATUS_dmabusy = '0' or dma_startnext = '1')) then
-               dma_startnext           <= '0';
-               fifoin_reset            <= '1';
-               fifoout_reset           <= '1';
-               SP_STATUS_dmabusy       <= '1';
-               SP_STATUS_dmafull       <= '0';
-               dma_isWrite             <= dma_next_isWrite;
-               SP_DMA_CURRENT_SPADDR   <= SP_DMA_SPADDR;
-               SP_DMA_CURRENT_RAMADDR  <= SP_DMA_RAMADDR;
-               SP_DMA_CURRENT_LEN      <= SP_DMA_LEN;
-               SP_DMA_CURRENT_COUNT    <= SP_DMA_COUNT;
-               SP_DMA_CURRENT_SKIP     <= SP_DMA_SKIP;
-               SP_DMA_CURRENT_WORKLEN  <= ('0' & SP_DMA_LEN) + 1;
-            end if;
-            
-            if (SP_STATUS_dmabusy = '1' and SP_DMA_CURRENT_WORKLEN = 0 and dma_startnext = '0') then
-               if ((dma_isWrite = '1' and fifoout_empty = '1' and fifoout_Wr = '0' and (fifoout_Wr_1 = '0' or use2Xclock = '1')) or (dma_isWrite = '0' and fifoin_Empty = '1')) then
-                  if (SP_DMA_CURRENT_COUNT > 0) then
-                     SP_DMA_CURRENT_COUNT    <= SP_DMA_CURRENT_COUNT - 1;
-                     SP_DMA_CURRENT_RAMADDR  <= SP_DMA_CURRENT_RAMADDR + SP_DMA_CURRENT_SKIP;
-                     SP_DMA_CURRENT_WORKLEN  <= ('0' & SP_DMA_LEN) + 1;
-                  else
-                     SP_DMA_CURRENT_LEN    <= (others => '1');
-                     if (SP_STATUS_dmafull = '1') then
-                        dma_startnext     <= '1';
-                     else
-                        SP_STATUS_dmabusy <= '0';
-                     end if;
-                  end if;
-               end if;
-            end if; 
-            
+
             -- DMA prefetch
             case (DMASTATE) is
             
                when DMA_IDLE =>
-                  if (SP_STATUS_dmabusy = '1') then
-                     if (dma_isWrite = '0') then
-                        if (fifoin_nearfull = '0' and SP_DMA_CURRENT_WORKLEN > 0) then
-                           DMASTATE         <= DMA_READBLOCK;
-                           rdram_request    <= '1';
-                           rdram_rnw        <= '1';
-                           rdram_address    <= "0000" & SP_DMA_CURRENT_RAMADDR & "000";
-                           if (SP_DMA_CURRENT_WORKLEN >= 16) then
-                              rdram_burstcount       <= to_unsigned(16,10);
-                           else
-                              rdram_burstcount       <= SP_DMA_CURRENT_WORKLEN;
-                           end if;
-                        end if;                      
-                     end if;
-                  end if;
+                  if (bus_reg_req_write = '0' and core_reg_RSP_write = '0') then
                   
+                     if (SP_STATUS_dmabusy = '1') then
+                      
+                        if (SP_DMA_CURRENT_WORKLEN > 0) then
+                           if (dma_isWrite = '0' and fifoin_nearfull = '0') then
+                              DMASTATE         <= DMA_READBLOCK;
+                              rdram_request    <= '1';
+                              rdram_rnw        <= '1';
+                              rdram_address    <= "0000" & SP_DMA_CURRENT_RAMADDR & "000";
+                              if (SP_DMA_CURRENT_WORKLEN >= 16) then
+                                 rdram_burstcount       <= to_unsigned(16,10);
+                              else
+                                 rdram_burstcount       <= SP_DMA_CURRENT_WORKLEN;
+                              end if;
+                           end if;
+                        else
+                           if ((dma_isWrite = '1' and fifoout_empty = '1' and fifoout_Wr = '0' and (fifoout_Wr_1 = '0' or use2Xclock = '1')) or (dma_isWrite = '0' and fifoin_Empty = '1')) then
+                              if (SP_DMA_CURRENT_COUNT > 0) then
+                                 SP_DMA_CURRENT_COUNT    <= SP_DMA_CURRENT_COUNT - 1;
+                                 SP_DMA_CURRENT_RAMADDR  <= SP_DMA_CURRENT_RAMADDR + SP_DMA_CURRENT_SKIP;
+                                 SP_DMA_CURRENT_WORKLEN  <= ('0' & SP_DMA_LEN) + 1;
+                              else
+                                 SP_DMA_CURRENT_LEN      <= (others => '1');
+                                 SP_STATUS_dmabusy       <= '0';
+                              end if;
+                           end if;
+                        end if;
+                        
+                     elsif (SP_STATUS_dmafull = '1') then
+                        SP_STATUS_dmabusy       <= '1';
+                        SP_STATUS_dmafull       <= '0';
+                        dma_isWrite             <= dma_next_isWrite;
+                        SP_DMA_CURRENT_SPADDR   <= SP_DMA_SPADDR;
+                        SP_DMA_CURRENT_RAMADDR  <= SP_DMA_RAMADDR;
+                        SP_DMA_CURRENT_LEN      <= SP_DMA_LEN;
+                        SP_DMA_CURRENT_COUNT    <= SP_DMA_COUNT;
+                        SP_DMA_CURRENT_SKIP     <= SP_DMA_SKIP;
+                        SP_DMA_CURRENT_WORKLEN  <= ('0' & SP_DMA_LEN) + 1;
+                     end if;
+
+                  end if;
+
                when DMA_READBLOCK =>
                   if (rdram_done = '1') then
                      DMASTATE               <= DMA_IDLE;

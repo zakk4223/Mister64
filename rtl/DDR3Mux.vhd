@@ -54,6 +54,10 @@ entity DDR3Mux is
       
       error            : out std_logic;
       error_fifo       : out std_logic;
+      error_outReq     : out std_logic;
+      error_outRSP     : out std_logic;
+      error_outRDP     : out std_logic;
+      error_outRDPZ    : out std_logic;
 
       ddr3_BUSY        : in  std_logic;                    
       ddr3_DOUT        : in  std_logic_vector(63 downto 0);
@@ -150,7 +154,13 @@ begin
    begin
       if rising_edge(clk2x) then
       
-         error       <= '0';
+         error          <= '0';
+         error_outReq   <= '0';
+         error_outRSP   <= '0';
+         error_outRDP   <= '0';
+         error_outRDPZ  <= '0';
+         
+         
          rspfifo_Rd  <= '0';
          rdpfifo_Rd  <= '0';
          rdpfifoZ_Rd <= '0';
@@ -246,7 +256,7 @@ begin
                      -- writing/reading behind ram
                      if ((RAMSIZE8_2x = '1' and rdram_address(activeIndex)(27 downto 23) > 0) or (RAMSIZE8_2x = '0' and rdram_address(activeIndex)(27 downto 22) > 0)) then
                         if (activeIndex /= DDR3MUX_SS) then
-                           error   <= '1';
+                           error_outReq   <= '1';
                            if (rdram_rnw(activeIndex) = '1') then
                               ddr3_ADDR(24 downto 0) <= 25x"100000";
                            else
@@ -265,8 +275,8 @@ begin
                      ddr3_BURSTCNT <= x"01";
                      
                      if (RAMSIZE8_2x = '0' and rdpfifo_Dout(83) = '1') then
-                        ddr3_WE <= '0';
-                        error   <= '1';
+                        ddr3_WE        <= '0';
+                        error_outRDP   <= '1';
                      end if;  
                      
                   elsif (rdpfifoZ_empty = '0' and rdpfifoZ_Rd = '0') then
@@ -279,8 +289,8 @@ begin
                      ddr3_BURSTCNT <= x"01";
                      
                      if (RAMSIZE8_2x = '0' and rdpfifo_Dout(83) = '1') then
-                        ddr3_WE <= '0';
-                        error   <= '1';
+                        ddr3_WE        <= '0';
+                        error_outRDPZ  <= '1';
                      end if;  
                   
                   end if;   
@@ -350,8 +360,8 @@ begin
                   ddr3_BURSTCNT <= x"01";           
 
                   if ((RAMSIZE8_2x = '1' and rspfifo_Dout(84) = '1') or (RAMSIZE8_2x = '0' and rspfifo_Dout(84 downto 83) /= "00")) then
-                     ddr3_WE <= '0';
-                     error   <= '1';
+                     ddr3_WE      <= '0';
+                     error_outRSP <= '1';
                   end if;      
                end if;
          

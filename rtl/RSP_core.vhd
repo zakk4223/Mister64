@@ -656,6 +656,10 @@ begin
          
             if (stall = 0) then
             
+               if (PC(1 downto 0) /= "00") then
+                  error_instr <= '1';
+               end if;
+            
                if (fetchNew = '1') then
                
                   decodeNew               <= '1'; 

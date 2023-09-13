@@ -66,9 +66,20 @@ architecture arch of AI is
       IDLE,
       NEXTDMA,
       STARTFETCH,
-      FETCHNEXT
+      FETCHNEXT,
+      FETCHNEXT2
    );
    signal state                     : tState := IDLE;
+   
+   signal dataNext      : std_logic_vector(31 downto 0);
+   
+   signal fifo_Din      : std_logic_vector(31 downto 0);
+   signal fifo_wr       : std_logic := '0';
+   signal error_Fifo    : std_logic;
+   signal fifo_nearfull : std_logic;
+   signal fifo_Dout     : std_logic_vector(31 downto 0);
+   signal fifo_Rd       : std_logic := '0';
+   signal fifo_Empty    : std_logic;
    
    -- savestates
    type t_ssarray is array(0 to 3) of std_logic_vector(63 downto 0);
@@ -88,6 +99,9 @@ begin
       if rising_edge(clk1x) then
       
          rdram_request <= '0';
+         
+         fifo_wr <= '0';
+         fifo_rd <= '0';
       
          if (reset = '1') then
             
@@ -96,14 +110,14 @@ begin
             bus_done             <= '0';
             irq_out              <= '0';
 
-            AI_DRAM_ADDR         <= unsigned(ss_in(0)(23 downto  0)); -- (others => '0');
-            AI_LEN               <= unsigned(ss_in(0)(41 downto 24)); -- (others => '0');
+            AI_DRAM_ADDR         <= unsigned(ss_in(0)(23 downto  3)) & "000"; -- (others => '0');
+            AI_LEN               <= unsigned(ss_in(0)(41 downto 27)) & "000"; -- (others => '0');
             AI_CONTROL_DMAON     <= ss_in(1)(42);                     -- '0';
             AI_DACRATE           <= unsigned(ss_in(0)(55 downto 42)); -- (others => '1');
             AI_BITRATE           <= unsigned(ss_in(0)(59 downto 56)); -- (others => '0');
                
             AI_DRAM_ADDR_next    <= unsigned(ss_in(1)(23 downto 0)); -- (others => '0');
-            AI_LEN_next          <= unsigned(ss_in(1)(41 downto 24)); -- (others => '0');
+            AI_LEN_next          <= unsigned(ss_in(1)(41 downto 27)) & "000"; -- (others => '0');
                  
             carry                <= ss_in(1)(43); --'0';
             fillcount            <= to_integer(unsigned(ss_in(1)(45 downto 44))); -- 0 
@@ -140,12 +154,18 @@ begin
                         if (AI_LEN > 0 and AI_CONTROL_DMAON = '1') then
                            state         <= STARTFETCH;
                            if (carry = '1') then
+                              carry        <= '0';
                               AI_DRAM_ADDR <= AI_DRAM_ADDR + 16#2000#;
                            end if;                           
                         elsif (AI_LEN = 0) then
                            state <= NEXTDMA;
                         end if;
-                        
+                     end if;
+                     
+                     if (fifo_Empty = '0') then
+                        fifo_Rd         <= '1';
+                        sound_out_left  <= fifo_Dout(7 downto 0) & fifo_Dout(15 downto 8);
+                        sound_out_right <= fifo_Dout(23 downto 16) & fifo_Dout(31 downto 24);
                      else
                         sound_out_left  <= (others => '0');
                         sound_out_right <= (others => '0');
@@ -204,32 +224,36 @@ begin
                   fillcount <= fillcount - 1;
                   
                when STARTFETCH =>
-                  state         <= FETCHNEXT;
-                  rdram_request <= '1';
+                  if (fifo_nearfull = '0') then
+                     state         <= FETCHNEXT;
+                     rdram_request <= '1';
+                  else
+                     state         <= IDLE;
+                  end if;
                   
                when FETCHNEXT =>
                   if (rdram_done = '1') then
-                     if (AI_DRAM_ADDR(2) = '1') then
-                        sound_out_left  <= rdram_dataRead(39 downto 32) & rdram_dataRead(47 downto 40);
-                        sound_out_right <= rdram_dataRead(55 downto 48) & rdram_dataRead(63 downto 56);
-                     else
-                        sound_out_left  <= rdram_dataRead(7 downto 0) & rdram_dataRead(15 downto 8);
-                        sound_out_right <= rdram_dataRead(23 downto 16) & rdram_dataRead(31 downto 24);
-                     end if;
-                     
-                     AI_DRAM_ADDR(12 downto 0) <= AI_DRAM_ADDR(12 downto 0) + 4;
-                     carry <= '0';
-                     if (AI_DRAM_ADDR(12 downto 2) = 11x"7FF") then
-                        carry <= '1';
-                     end if;                     
-                     
-                     AI_LEN <= AI_LEN - 4;
-                     if (AI_LEN = 4) then
-                        state <= NEXTDMA;
-                     else
-                        state <= IDLE;
-                     end if;
-                     
+                     state    <= FETCHNEXT2;
+                     dataNext <= rdram_dataRead(63 downto 32);
+                     fifo_Din <= rdram_dataRead(31 downto 0);
+                     fifo_wr  <= '1';
+                  end if;
+                  
+               when FETCHNEXT2 => 
+                  fifo_Din <= dataNext;
+                  fifo_wr  <= '1';
+                  
+                  AI_DRAM_ADDR(12 downto 0) <= AI_DRAM_ADDR(12 downto 0) + 8;
+                  carry <= '0';
+                  if (AI_DRAM_ADDR(12 downto 3) = 10x"3FF") then
+                     carry <= '1';
+                  end if;                     
+                  
+                  AI_LEN <= AI_LEN - 8;
+                  if (AI_LEN = 8) then
+                     state <= NEXTDMA;
+                  else
+                     state <= IDLE;
                   end if;
                   
             end case;
@@ -237,6 +261,26 @@ begin
          end if;
       end if;
    end process;
+   
+   iSyncFifo: entity mem.SyncFifoFallThrough
+   generic map
+   (
+      SIZE             => 8,
+      DATAWIDTH        => 32,
+      NEARFULLDISTANCE => 2
+   )
+   port map
+   ( 
+      clk      => clk1x,
+      reset    => '0',  
+      Din      => fifo_Din,     
+      Wr       => fifo_wr,      
+      Full     => error_Fifo,    
+      NearFull => fifo_nearfull,
+      Dout     => fifo_Dout,    
+      Rd       => fifo_Rd,      
+      Empty    => fifo_Empty   
+   );
    
 --##############################################################
 --############################### savestates
@@ -288,10 +332,18 @@ begin
          file_open(f_status, outfile, "R:\\AI_n64_sim.txt", append_mode);
          
          while (true) loop
+         
+            if (reset = '1') then
+               file_close(outfile);
+               file_open(f_status, outfile, "R:\\AI_n64_sim.txt", write_mode);
+               file_close(outfile);
+               file_open(f_status, outfile, "R:\\AI_n64_sim.txt", append_mode);
+               out_count <= (others => '0');
+            end if;
             
             wait until rising_edge(clk1x);
 
-            if (state = FETCHNEXT and rdram_done = '1') then
+            if (waittime = 0) then
                wait until rising_edge(clk1x);
                
                write(line_out, to_hstring(sound_out_left & sound_out_right));

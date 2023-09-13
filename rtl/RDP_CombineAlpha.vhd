@@ -49,8 +49,8 @@ architecture arch of RDP_CombineAlpha is
    signal combiner_mul       : signed(19 downto 0);
    signal combiner_add       : signed(19 downto 0);
    signal combiner_cut       : signed(11 downto 0);
-   signal combiner_result    : unsigned(7 downto 0);
-   signal cvgmul             : unsigned(11 downto 0);
+   signal combiner_result    : unsigned(8 downto 0);
+   signal cvgmul             : unsigned(12 downto 0);
    signal cvgCount_select    : unsigned(3 downto 0);
 
    signal combine_alpha_next : signed(9 downto 0) := (others => '0');
@@ -125,9 +125,9 @@ begin
    combiner_cut <= combiner_add(19 downto 8);
    
    
-   combiner_result <= (others => '0') when (combiner_cut(8 downto 7) = "11") else
-                      (others => '1') when (combiner_cut(8) = '1') else
-                      unsigned(combiner_cut(7 downto 0));
+   combiner_result <= 9x"000" when (combiner_cut(8 downto 7) = "11") else
+                      9x"100" when (combiner_cut(8) = '1' or combiner_cut(7 downto 0) = x"FF") else
+                      '0' & unsigned(combiner_cut(7 downto 0));
                       
    cvgmul <= (combiner_result * cvgCount) + 4;
    
@@ -136,7 +136,7 @@ begin
    cvg_overflow <= '1' when (cvgFB + cvgCount_select >= 8) else '0';
 
    process (clk1x)
-      variable calc_alpha : unsigned(7 downto 0);
+      variable calc_alpha : unsigned(8 downto 0);
    begin
       if rising_edge(clk1x) then
       
@@ -156,21 +156,21 @@ begin
             end if;
          else
             if (settings_otherModes.cvgTimesAlpha = '1') then
-               calc_alpha := cvgmul(10 downto 3);
+               calc_alpha := cvgmul(11 downto 3);
             else 
-               if (cvgCount(3) = '1') then
-                  calc_alpha := x"FF";
-               else
-                  calc_alpha := cvgCount(2 downto 0) & "00000";
-               end if;
+               calc_alpha := cvgCount(3 downto 0) & "00000";
             end if;
          end if;
             
+         if (calc_alpha(8) = '1') then
+            calc_alpha := 9x"0FF";
+         end if;
+            
          if (trigger = '1') then
-            combine_alpha <= calc_alpha;
+            combine_alpha <= calc_alpha(7 downto 0);
          end if;
          if (step2 = '1') then
-            combine_alpha2 <= calc_alpha;
+            combine_alpha2 <= calc_alpha(7 downto 0);
          end if;
          
          if (trigger = '1') then

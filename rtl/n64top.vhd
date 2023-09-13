@@ -148,7 +148,7 @@ architecture arch of n64top is
    
    -- error codes
    signal errorEna               : std_logic;
-   signal errorCode              : unsigned(19 downto 0) := (others => '0');
+   signal errorCode              : unsigned(23 downto 0) := (others => '0');
    
    signal errorMEMMUX            : std_logic;
    signal errorCPU_instr         : std_logic;
@@ -168,7 +168,12 @@ architecture arch of n64top is
    signal errorRDP_drawMode      : std_logic;
    signal errorRSP_FIFO          : std_logic;
    signal errorDDR3_FIFO         : std_logic;
-   signal errorRSPADDR           : std_logic;
+   signal errorRSP_ADDR          : std_logic;
+   signal errorDDR3_outReq       : std_logic;
+   signal errorDDR3_outRSP       : std_logic;
+   signal errorDDR3_outRDP       : std_logic;
+   signal errorDDR3_outRDPZ      : std_logic;
+   signal errorRSP_PCON          : std_logic;
   
    -- irq
    signal irqRequest             : std_logic;
@@ -428,7 +433,7 @@ begin
    
    -- error codes
    process (reset_intern_1x, errorMEMMUX          ) begin if (errorMEMMUX           = '1') then errorCode( 0) <= '1'; elsif (reset_intern_1x = '1') then errorCode( 0) <= '0'; end if; end process;
-   process (reset_intern_1x, errorCPU_instr       ) begin if (errorCPU_instr        = '1') then errorCode( 1) <= '1'; elsif (reset_intern_1x = '1') then errorCode( 1) <= '0'; end if; end process;
+   --process (reset_intern_1x, errorCPU_instr       ) begin if (errorCPU_instr        = '1') then errorCode( 1) <= '1'; elsif (reset_intern_1x = '1') then errorCode( 1) <= '0'; end if; end process;
    process (reset_intern_1x, errorCPU_stall       ) begin if (errorCPU_stall        = '1') then errorCode( 2) <= '1'; elsif (reset_intern_1x = '1') then errorCode( 2) <= '0'; end if; end process;
    process (reset_intern_1x, errorDDR3            ) begin if (errorDDR3             = '1') then errorCode( 3) <= '1'; elsif (reset_intern_1x = '1') then errorCode( 3) <= '0'; end if; end process;
    process (reset_intern_1x, errorCPU_FPU         ) begin if (errorCPU_FPU          = '1') then errorCode( 4) <= '1'; elsif (reset_intern_1x = '1') then errorCode( 4) <= '0'; end if; end process;
@@ -445,9 +450,12 @@ begin
    process (reset_intern_1x, errorRDP_drawMode    ) begin if (errorRDP_drawMode     = '1') then errorCode(15) <= '1'; elsif (reset_intern_1x = '1') then errorCode(15) <= '0'; end if; end process;
    process (reset_intern_1x, errorRSP_FIFO        ) begin if (errorRSP_FIFO         = '1') then errorCode(16) <= '1'; elsif (reset_intern_1x = '1') then errorCode(16) <= '0'; end if; end process;
    process (reset_intern_1x, errorDDR3_FIFO       ) begin if (errorDDR3_FIFO        = '1') then errorCode(17) <= '1'; elsif (reset_intern_1x = '1') then errorCode(17) <= '0'; end if; end process;
-   process (reset_intern_1x, errorRSPADDR         ) begin if (errorRSPADDR          = '1') then errorCode(18) <= '1'; elsif (reset_intern_1x = '1') then errorCode(18) <= '0'; end if; end process;
-   
-   errorCode(19) <= '0';
+   process (reset_intern_1x, errorRSP_ADDR        ) begin if (errorRSP_ADDR         = '1') then errorCode(18) <= '1'; elsif (reset_intern_1x = '1') then errorCode(18) <= '0'; end if; end process;
+   process (reset_intern_1x, errorDDR3_outReq     ) begin if (errorDDR3_outReq      = '1') then errorCode(19) <= '1'; elsif (reset_intern_1x = '1') then errorCode(19) <= '0'; end if; end process;
+   process (reset_intern_1x, errorDDR3_outRSP     ) begin if (errorDDR3_outRSP      = '1') then errorCode(20) <= '1'; elsif (reset_intern_1x = '1') then errorCode(20) <= '0'; end if; end process;
+   process (reset_intern_1x, errorDDR3_outRDP     ) begin if (errorDDR3_outRDP      = '1') then errorCode(21) <= '1'; elsif (reset_intern_1x = '1') then errorCode(21) <= '0'; end if; end process;
+   process (reset_intern_1x, errorDDR3_outRDPZ    ) begin if (errorDDR3_outRDPZ     = '1') then errorCode(22) <= '1'; elsif (reset_intern_1x = '1') then errorCode(22) <= '0'; end if; end process;
+   process (reset_intern_1x, errorRSP_PCON        ) begin if (errorRSP_PCON         = '1') then errorCode(23) <= '1'; elsif (reset_intern_1x = '1') then errorCode(23) <= '0'; end if; end process;
    
    process (clk1x)
    begin
@@ -479,7 +487,8 @@ begin
       error_instr          => errorRSP_instr,
       error_stall          => errorRSP_stall,
       error_fifo           => errorRSP_FIFO,
-      error_addr           => errorRSPADDR,
+      error_addr           => errorRSP_ADDR,
+      error_PCON           => errorRSP_PCON,
                            
       bus_addr             => bus_RSP_addr,     
       bus_dataWrite        => bus_RSP_dataWrite,
@@ -965,6 +974,10 @@ begin
       
       error            => errorDDR3,
       error_fifo       => errorDDR3_FIFO,
+      error_outReq     => errorDDR3_outReq,
+      error_outRSP     => errorDDR3_outRSP,
+      error_outRDP     => errorDDR3_outRDP,
+      error_outRDPZ    => errorDDR3_outRDPZ,
                                           
       ddr3_BUSY        => ddr3_BUSY,       
       ddr3_DOUT        => ddr3_DOUT,       

@@ -34,6 +34,11 @@ List of Errors:
 - Bit 16 - RSP read Fifo overflow
 - Bit 17 - DDR3 - RSP write Fifo overflow
 - Bit 18 - RSP IMEM/DMEM write/read address collision detected
+- Bit 19 - One fo the DDR3 requesters wants to write or read outside of RDRAM 
+- Bit 20 - RSP DMA wants to write outside of RDRAM 
+- Bit 21 - RDP pixel writeback wants to write outside of RDRAM
+- Bit 22 - RDP Z writeback wants to write outside of RDRAM
+- Bit 23 - RSP PC is modified by register access while RSP runs
   
 ## Status
 

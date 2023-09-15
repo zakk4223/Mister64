@@ -358,7 +358,11 @@ begin
                   checkInputs_nan   <= '1';                  
                   checkInputs2_dn   <= '1';
                   checkInputs2_nan  <= '1';
-                  outputInvalid     <= nanA or nanB or (infA and infB);
+                  outputInvalid     <= nanA or nanB;
+                  if (infA = '1' and infB = '1') then 
+                     if (op(0) = '0' and signA /= signB) then outputInvalid <= '1'; end if;
+                     if (op(0) = '1' and signA = signB)  then outputInvalid <= '1'; end if;
+                  end if;
        
                when OP_MUL  =>
                   causeReset        <= '1';
@@ -420,6 +424,7 @@ begin
                   
                when OP_C_F | OP_C_UN | OP_C_EQ | OP_C_UEQ | OP_C_OLT | OP_C_ULT | OP_C_OLE | OP_C_ULE | OP_C_SF | OP_C_NGLE | OP_C_SEQ | OP_C_NGL | OP_C_LT | OP_C_NGE | OP_C_LE | OP_C_NGT =>
                   command_done <= '1';
+                  causeReset   <= '1';
                   if (cmp_inputInvalid_a = '1' or cmp_inputInvalid_b = '1') then
                      if (csr_ena_invalidOperation = '1') then
                         exceptionFPU <= '1';
@@ -1308,6 +1313,13 @@ begin
                ADD_result   <= resize(ADD_value1, 57) - resize(ADD_shift_result_or, 57);
             else
                ADD_result   <= resize(ADD_shift_result_or, 57) - resize(ADD_value1, 57);
+            end if;
+            
+            if (exception_inputInvalid = '0' and outputInvalid_1 = '0' and (infA_1 = '1' or infB_1 = '1')) then
+               shortcut_store <= '1';
+               shortcut_mant  <= (others => '0');
+               shortcut_exp   <= (others => '1');
+               ADD_stage1     <= '0';
             end if;
          end if;
          

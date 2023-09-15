@@ -9,11 +9,14 @@ entity RDP_TexSingle is
    (
       clk1x                : in  std_logic;
       trigger              : in  std_logic;
+      step2                : in  std_logic;
+      mode2                : in  std_logic;
          
       error_texMode        : out std_logic;  
 
       settings_otherModes  : in  tsettings_otherModes;
-      settings_tile        : in  tsettings_tile;      
+      settings_tile_1      : in  tsettings_tile;      
+      settings_tile_2      : in  tsettings_tile;      
       
       data4                : in  unsigned(3 downto 0);
       data8                : in  unsigned(7 downto 0);
@@ -72,10 +75,10 @@ begin
             exportNext_TexFt_db3  <= (others => '0');
             -- synthesis translate_on
             
-            case (settings_tile.Tile_size) is
+            case (settings_tile_1.Tile_size) is
                
                when SIZE_4BIT =>
-                  case (settings_tile.Tile_format) is
+                  case (settings_tile_1.Tile_format) is
                      when FORMAT_RGBA => error_texMode <= '1'; -- should not be allowed
                      when FORMAT_YUV => error_texMode <= '1'; -- should not be allowed
                      
@@ -121,7 +124,7 @@ begin
                   end case;
                
                when SIZE_8BIT =>
-                  case (settings_tile.Tile_format) is
+                  case (settings_tile_1.Tile_format) is
                      when FORMAT_RGBA => error_texMode <= '1'; -- should not be allowed
                      when FORMAT_YUV => error_texMode <= '1'; -- should not be allowed
                      when FORMAT_CI =>
@@ -165,7 +168,7 @@ begin
                   end case;
                
                when SIZE_16BIT =>
-                  case (settings_tile.Tile_format) is
+                  case (settings_tile_1.Tile_format) is
                      when FORMAT_RGBA => 
                         tex_color_read(0) <= data16(15 downto 11) & data16(15 downto 13);
                         tex_color_read(1) <= data16(10 downto  6) & data16(10 downto  8);
@@ -203,7 +206,7 @@ begin
                   end case;
                
                when SIZE_32BIT =>
-                  case (settings_tile.Tile_format) is
+                  case (settings_tile_1.Tile_format) is
                      when FORMAT_RGBA =>
                         tex_color_read(0) <= data32(31 downto 24);
                         tex_color_read(1) <= data32(23 downto 16);
@@ -249,7 +252,7 @@ begin
          tex_color(2) <= (others => '0');
          tex_color(3) <= (others => '0');
       
-         case (settings_tile.Tile_format) is
+         case (settings_tile_2.Tile_format) is
             when FORMAT_RGBA => null;
             when FORMAT_YUV => null;
             when FORMAT_CI =>

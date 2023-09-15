@@ -53,6 +53,9 @@ entity RDP_pipeline is
       pipeIn_dzPix            : in  unsigned(15 downto 0);
       pipeIn_copySize         : in  unsigned(3 downto 0);
       
+      pipe_tile               : out std_logic_vector(2 downto 0) := (others => '0');
+      
+      TextureReadEna          : out std_logic;
       TextureAddr             : out tTextureRamAddr;
       TextureRamData          : in  tTextureRamData;
       
@@ -161,6 +164,7 @@ architecture arch of RDP_pipeline is
    signal stage_copySize      : t_stage_u4 := (others => (others => '0'));
       
    signal step2               : std_logic := '0';
+   signal settings_tile_1     : tsettings_tile;
       
    -- only delayed once 
    signal pipeIn_S_1          : signed(15 downto 0) := (others => '0');
@@ -172,8 +176,6 @@ architecture arch of RDP_pipeline is
    signal texture_T_unclamped : signed(18 downto 0) := (others => '0');
    
    -- modules  
-   signal tile2               : unsigned(2 downto 0);
-   
    signal texture_color       : tcolor3_u8;
    signal texture_alpha       : unsigned(7 downto 0);
    signal texture_copy        : unsigned(63 downto 0);
@@ -298,6 +300,10 @@ begin
 
    pipe_busy <= '1' when (stage_valid > 0) else '0';
    
+   pipe_tile <= std_logic_vector(settings_poly.tile + 1) when (step2 = '1') else std_logic_vector(settings_poly.tile);
+   
+   TextureReadEna <= pipeIn_trigger or step2;
+   
    cvg_sum   <= zCVGCount + ('0' & stage_cvgFB(STAGE_BLENDER));
                 
    -- perspective correction - input stage
@@ -342,6 +348,10 @@ begin
          
          step2       <= '0';
          
+         if (pipeIn_trigger = '1') then
+            settings_tile_1 <= settings_tile;
+         end if;
+         
          -- synthesis translate_off
          export_pipeDone <= '0';
          -- synthesis translate_on
@@ -359,7 +369,7 @@ begin
             if (settings_otherModes.cycleType = "01") then
                step2 <= '1';
             end if;
-      
+            
             -- ##################################################
             -- ######### STAGE_INPUT ############################
             -- ##################################################
@@ -907,13 +917,13 @@ begin
    iRDP_TexCoordClamp_S : entity work.RDP_TexCoordClamp port map (texture_S_unclamped, texture_S_clamped);
    iRDP_TexCoordClamp_T : entity work.RDP_TexCoordClamp port map (texture_T_unclamped, texture_T_clamped);
     
-   tile2 <= settings_poly.tile + 1; -- todo: add real LOD
-    
    iRDP_TexTile_S: entity work.RDP_TexTile
    port map
    (
       clk1x          => clk1x,
       trigger        => pipeIn_trigger,
+      mode2          => settings_otherModes.cycleType(0),
+      step2          => step2,
    
       coordIn        => texture_S_clamped,
       tile_max       => settings_tile.Tile_sh,
@@ -936,6 +946,8 @@ begin
    (
       clk1x          => clk1x,
       trigger        => pipeIn_trigger,
+      mode2          => settings_otherModes.cycleType(0),
+      step2          => step2,
    
       coordIn        => texture_T_clamped,
       tile_max       => settings_tile.Tile_th,
@@ -951,19 +963,21 @@ begin
    );
     
     
-   -- STAGE_TEXFETCH + STAGE_PALETTE   
+   -- STAGE_TEXFETCH + STAGE_TEXREAD + STAGE_PALETTE   
    iRDP_TexFetch: entity work.RDP_TexFetch
    port map
    (
       clk1x                => clk1x,
       trigger              => pipeIn_trigger,
+      mode2                => settings_otherModes.cycleType(0),
+      step2                => step2,
       
       DISABLEFILTER        => DISABLEFILTER,
       
       error_texMode        => error_texMode,
       
       settings_otherModes  => settings_otherModes,
-      settings_tile        => settings_tile,
+      settings_tile        => settings_tile_1,
       index_S              => texture_S_index,
       index_S1             => texture_S_index1,
       index_S2             => texture_S_index2,
@@ -976,7 +990,7 @@ begin
       frac_T               => texture_T_frac,                 
       
       tex_addr             => TextureAddr,
-      tex_data             => TextureRamData,
+      tex_data_in          => TextureRamData,
       
       -- synthesis translate_off
       export_TextureAddr   => export_TextureAddr,

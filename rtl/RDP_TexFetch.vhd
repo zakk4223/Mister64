@@ -9,6 +9,8 @@ entity RDP_TexFetch is
    (
       clk1x                : in  std_logic;
       trigger              : in  std_logic;
+      step2                : in  std_logic;
+      mode2                : in  std_logic;
       
       DISABLEFILTER        : in  std_logic;
          
@@ -28,7 +30,7 @@ entity RDP_TexFetch is
       frac_T               : in  unsigned(4 downto 0);
             
       tex_addr             : out tTextureRamAddr;
-      tex_data             : in  tTextureRamData;
+      tex_data_in          : in  tTextureRamData;
       
       -- synthesis translate_off
       export_TextureAddr   : out tcolor4_u12;
@@ -67,6 +69,10 @@ architecture arch of RDP_TexFetch is
    signal addr_calcR3            : unsigned(12 downto 0);
 
    -- first cycle   
+   signal settings_tile_1        : tsettings_tile; 
+   signal tex_data_1             : tTextureRamData;   
+   signal tex_data               : tTextureRamData;   
+   
    signal frac_S_1               : unsigned(4 downto 0) := (others => '0');
    signal frac_T_1               : unsigned(4 downto 0) := (others => '0');
    
@@ -122,6 +128,8 @@ architecture arch of RDP_TexFetch is
    -- synthesis translate_on
   
    -- second cycle
+   signal settings_tile_2        : tsettings_tile;
+   
    signal frac_S_2               : signed(5 downto 0) := (others => '0');
    signal frac_T_2               : signed(5 downto 0) := (others => '0');
    signal texmode                : unsigned(1 downto 0) := (others => '0');
@@ -268,12 +276,12 @@ begin
       else tex_addr(3) <= (others => '0'); tex_addr(7) <= (others => '0'); end if;
    
       if (settings_otherModes.enTlut = '1') then
-         case (settings_tile.Tile_size) is
+         case (settings_tile_1.Tile_size) is
             when SIZE_4BIT =>
-               tex_addr(4) <= std_logic_vector(settings_tile.Tile_palette) & std_logic_vector(tex4_0);
-               tex_addr(5) <= std_logic_vector(settings_tile.Tile_palette) & std_logic_vector(tex4_1);
-               tex_addr(6) <= std_logic_vector(settings_tile.Tile_palette) & std_logic_vector(tex4_2);
-               tex_addr(7) <= std_logic_vector(settings_tile.Tile_palette) & std_logic_vector(tex4_3);
+               tex_addr(4) <= std_logic_vector(settings_tile_1.Tile_palette) & std_logic_vector(tex4_0);
+               tex_addr(5) <= std_logic_vector(settings_tile_1.Tile_palette) & std_logic_vector(tex4_1);
+               tex_addr(6) <= std_logic_vector(settings_tile_1.Tile_palette) & std_logic_vector(tex4_2);
+               tex_addr(7) <= std_logic_vector(settings_tile_1.Tile_palette) & std_logic_vector(tex4_3);
                
             when SIZE_8BIT =>
                tex_addr(4) <= std_logic_vector(tex8_0);
@@ -332,8 +340,14 @@ begin
    process (clk1x)
    begin
       if rising_edge(clk1x) then
+      
+         if (trigger = '1' or step2 = '1') then
+            tex_data_1 <= tex_data_in;
+         end if;
 
          if (trigger = '1') then
+         
+            settings_tile_1 <= settings_tile;
          
             frac_S_1 <= frac_S;
             frac_T_1 <= frac_T;
@@ -362,6 +376,8 @@ begin
       
       end if;
    end process;
+   
+   tex_data <= tex_data_in when (mode2 = '0') else tex_data_1;
    
    -- data select   
    tex_in0 <= unsigned(tex_data(select0));
@@ -402,12 +418,15 @@ begin
    port map
    (
       clk1x                => clk1x,              
-      trigger              => trigger,            
+      trigger              => trigger,  
+      step2                => step2,
+      mode2                => mode2,
                                              
       error_texMode        => error_texMode,      
                                              
       settings_otherModes  => settings_otherModes,
-      settings_tile        => settings_tile,      
+      settings_tile_1      => settings_tile_1,      
+      settings_tile_2      => settings_tile_2,       
                                             
       data4                => tex4_0,
       data8                => tex8_0,
@@ -433,11 +452,14 @@ begin
    (
       clk1x                => clk1x,              
       trigger              => trigger,            
+      step2                => step2,
+      mode2                => mode2,
                                              
       error_texMode        => open,      
                                              
       settings_otherModes  => settings_otherModes,
-      settings_tile        => settings_tile,      
+      settings_tile_1      => settings_tile_1,      
+      settings_tile_2      => settings_tile_2,       
                                             
       data4                => tex4_1,
       data8                => tex8_1,
@@ -462,12 +484,15 @@ begin
    port map
    (
       clk1x                => clk1x,              
-      trigger              => trigger,            
+      trigger              => trigger,
+      step2                => step2,
+      mode2                => mode2,
                                              
       error_texMode        => open,      
                                              
       settings_otherModes  => settings_otherModes,
-      settings_tile        => settings_tile,      
+      settings_tile_1      => settings_tile_1,      
+      settings_tile_2      => settings_tile_2,      
                                             
       data4                => tex4_2,
       data8                => tex8_2,
@@ -492,12 +517,15 @@ begin
    port map
    (
       clk1x                => clk1x,              
-      trigger              => trigger,            
+      trigger              => trigger,
+      step2                => step2,
+      mode2                => mode2,      
                                              
       error_texMode        => open,      
                                              
       settings_otherModes  => settings_otherModes,
-      settings_tile        => settings_tile,      
+      settings_tile_1      => settings_tile_1,      
+      settings_tile_2      => settings_tile_2,      
                                             
       data4                => tex4_3,
       data8                => tex8_3,
@@ -524,6 +552,8 @@ begin
       if rising_edge(clk1x) then
       
          if (trigger = '1') then
+         
+            settings_tile_2 <= settings_tile_1;
          
             frac_S_2 <= '0' & signed(frac_S_1);
             frac_T_2 <= '0' & signed(frac_T_1);

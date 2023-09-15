@@ -33,6 +33,15 @@ entity RDP_command is
       export_command_done     : out std_logic := '0'; 
       -- synthesis translate_on
       
+      tile_Command            : out std_logic_vector(2 downto 0) := (others => '0');
+      tile_usePipe            : out std_logic := '0';
+      tileSettings_WrAddr     : out std_logic_vector(2 downto 0) := (others => '0');
+      tileSettings_WrData     : out std_logic_vector(46 downto 0) := (others => '0');
+      tileSettings_we         : out std_logic := '0';
+      tileSize_WrAddr         : out std_logic_vector(2 downto 0) := (others => '0');
+      tileSize_WrData         : out std_logic_vector(47 downto 0) := (others => '0');
+      tileSize_we             : out std_logic := '0';
+      
       settings_scissor        : out tsettings_scissor := SETTINGSSCISSORINIT;
       settings_Z              : out tsettings_Z := (others => (others => '0'));
       settings_otherModes     : out tsettings_otherModes := SETTINGSOTHERMODESINIT;
@@ -45,7 +54,6 @@ entity RDP_command is
       settings_textureImage   : out tsettings_textureImage := (others => (others => '0'));
       settings_Z_base         : out unsigned(24 downto 0) := (others => '0');
       settings_colorImage     : out tsettings_colorImage := (others => (others => '0'));
-      settings_tile           : out tsettings_tile;
       settings_loadtype       : out tsettings_loadtype
    );
 end entity;
@@ -77,20 +85,6 @@ architecture arch of RDP_command is
    signal texture : std_logic;             
    signal zbuffer : std_logic;     
 
-   -- tile settings
-   signal tile_RdAddr : std_logic_vector(2 downto 0) := (others => '0');
-   
-   signal tileSettings_WrAddr : std_logic_vector(2 downto 0) := (others => '0');
-   signal tileSettings_WrData : std_logic_vector(46 downto 0) := (others => '0');
-   signal tileSettings_we     : std_logic := '0';
-   signal tileSettings_RdData : std_logic_vector(46 downto 0) := (others => '0');  
-
-   -- tile size
-   signal tileSize_WrAddr     : std_logic_vector(2 downto 0) := (others => '0');
-   signal tileSize_WrData     : std_logic_vector(47 downto 0) := (others => '0');
-   signal tileSize_we         : std_logic := '0';
-   signal tileSize_RdData     : std_logic_vector(47 downto 0) := (others => '0');
-
 begin 
 
    commandIsIdle <= '1' when (state = IDLE) else '0';
@@ -116,36 +110,6 @@ begin
                            '0';
    -- synthesis translate_on
    
-   itileSettings : entity mem.RamMLAB
-	GENERIC MAP 
-   (
-      width      => 47, -- 56 - 1 - 8 = 47
-      widthad    => 3
-	)
-	PORT MAP (
-      inclock    => clk1x,
-      wren       => tileSettings_we,
-      data       => tileSettings_WrData,
-      wraddress  => tileSettings_WrAddr,
-      rdaddress  => tile_RdAddr,
-      q          => tileSettings_RdData
-	);
-   
-   itileSize : entity mem.RamMLAB
-	GENERIC MAP 
-   (
-      width      => 48, -- 56 - 8 = 48
-      widthad    => 3
-	)
-	PORT MAP (
-      inclock    => clk1x,
-      wren       => tileSize_we,
-      data       => tileSize_WrData,
-      wraddress  => tileSize_WrAddr,
-      rdaddress  => tile_RdAddr,
-      q          => tileSize_RdData
-	);
-   
    process (clk1x)
    begin
       if rising_edge(clk1x) then
@@ -157,25 +121,6 @@ begin
          sync_full       <= '0';
          tileSettings_we <= '0';
          tileSize_we     <= '0';
-         
-         settings_tile.Tile_sl <= unsigned(tileSize_RdData(47 downto 36));
-         settings_tile.Tile_tl <= unsigned(tileSize_RdData(35 downto 24));
-         settings_tile.Tile_sh <= unsigned(tileSize_RdData(23 downto 12));
-         settings_tile.Tile_th <= unsigned(tileSize_RdData(11 downto  0));
-      
-         settings_tile.Tile_format   <= unsigned(tileSettings_RdData(46 downto 44));
-         settings_tile.Tile_size     <= unsigned(tileSettings_RdData(43 downto 42));
-         settings_tile.Tile_line     <= unsigned(tileSettings_RdData(41 downto 33));
-         settings_tile.Tile_TmemAddr <= unsigned(tileSettings_RdData(32 downto 24));
-         settings_tile.Tile_palette  <= unsigned(tileSettings_RdData(23 downto 20));
-         settings_tile.Tile_clampT   <= tileSettings_RdData(19);
-         settings_tile.Tile_mirrorT  <= tileSettings_RdData(18);
-         settings_tile.Tile_maskT    <= unsigned(tileSettings_RdData(17 downto 14));
-         settings_tile.Tile_shiftT   <= unsigned(tileSettings_RdData(13 downto 10));
-         settings_tile.Tile_clampS   <= tileSettings_RdData(9);
-         settings_tile.Tile_mirrorS  <= tileSettings_RdData(8);
-         settings_tile.Tile_maskS    <= unsigned(tileSettings_RdData( 7 downto  4));
-         settings_tile.Tile_shiftS   <= unsigned(tileSettings_RdData( 3 downto  0));
       
          if (reset = '1') then
             
@@ -213,7 +158,8 @@ begin
                         shade          <= CommandData(58); 
                         texture        <= CommandData(57); 
                         zbuffer        <= CommandData(56); 
-                        tile_RdAddr    <= std_logic_vector(CommandData(50 downto 48));
+                        tile_Command   <= std_logic_vector(CommandData(50 downto 48));
+                        tile_usePipe   <= '1';
                         state          <= IDLE;
                         if (commandRAMPtr = 1) then
                            commandAbort   <= '1';
@@ -248,7 +194,8 @@ begin
                            end if;
                         end if;
                      
-                        tile_RdAddr            <= std_logic_vector(CommandData(26 downto 24));
+                        tile_Command           <= std_logic_vector(CommandData(26 downto 24));
+                        tile_usePipe           <= '1';
                         settings_poly.lft      <= '1';
                         settings_poly.YL       <= "000" & signed(CommandData(43 downto 32));
                         settings_poly.YM       <= "000" & signed(CommandData(43 downto 32));
@@ -341,7 +288,8 @@ begin
                         poly_loading_mode      <= '1';
                         state                  <= WAITRASTER;   
                         commandRAMPtr          <= commandRAMPtr;                        
-                        tile_RdAddr            <= std_logic_vector(CommandData(26 downto 24));
+                        tile_Command           <= std_logic_vector(CommandData(26 downto 24));
+                        tile_usePipe           <= '0';
                         tileSize_WrAddr        <= std_logic_vector(CommandData(26 downto 24));
                         tileSize_WrData        <= std_logic_vector(CommandData(55 downto 32)) & std_logic_vector(CommandData(23 downto 0));
                         tileSize_we            <= '1'; 
@@ -387,7 +335,8 @@ begin
                         poly_loading_mode      <= '1';
                         state                  <= WAITRASTER;   
                         commandRAMPtr          <= commandRAMPtr;                        
-                        tile_RdAddr            <= std_logic_vector(CommandData(26 downto 24));
+                        tile_Command           <= std_logic_vector(CommandData(26 downto 24));
+                        tile_usePipe           <= '0';
                         tileSize_WrAddr        <= std_logic_vector(CommandData(26 downto 24));
                         tileSize_WrData        <= std_logic_vector(CommandData(55 downto 32)) & std_logic_vector(CommandData(23 downto 0));
                         tileSize_we            <= '1'; 
@@ -429,7 +378,8 @@ begin
                         poly_loading_mode          <= '0';
                         commandRAMPtr              <= commandRAMPtr;
                         state                      <= WAITRASTER;
-                        tile_RdAddr                <= (others => '0');
+                        tile_Command               <= (others => '0');
+                        tile_usePipe               <= '0';
                         settings_poly.lft          <= '1';
                         settings_poly.maxLODlevel  <= (others => '0');
                         settings_poly.YL           <= "000" & signed(CommandData(43 downto 32));

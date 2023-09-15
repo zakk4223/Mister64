@@ -1117,7 +1117,7 @@ begin
    end process;
    
    -- loading
-   loadLineDone <= '1' when (loadstate = LOADLINE and (load_posX + spanAdvance) > load_endX) else '0';
+   loadLineDone <= '1' when (loadstate = LOADLINE and (to_integer(load_posX) + spanAdvance) > to_integer(load_endX)) else '0';
    
    spanAdvance <= 4 when (settings_textureImage.tex_size = SIZE_16BIT and settings_loadtype /= LOADTYPE_TLUT) else
                   1 when (settings_textureImage.tex_size = SIZE_16BIT and settings_loadtype = LOADTYPE_TLUT) else

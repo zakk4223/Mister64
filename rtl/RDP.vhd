@@ -219,6 +219,23 @@ architecture arch of RDP is
    signal settings_tile             : tsettings_tile;
    signal settings_loadtype         : tsettings_loadtype;
    
+   -- tile settings
+   signal tile_RdAddr               : std_logic_vector(2 downto 0);
+   signal tile_Command              : std_logic_vector(2 downto 0);
+   signal tile_usePipe              : std_logic;
+   signal tile_pipe                 : std_logic_vector(2 downto 0);
+                                    
+   signal tileSettings_WrAddr       : std_logic_vector(2 downto 0);
+   signal tileSettings_WrData       : std_logic_vector(46 downto 0);
+   signal tileSettings_we           : std_logic;
+   signal tileSettings_RdData       : std_logic_vector(46 downto 0);  
+                                    
+   -- tile size                     
+   signal tileSize_WrAddr           : std_logic_vector(2 downto 0);
+   signal tileSize_WrData           : std_logic_vector(47 downto 0);
+   signal tileSize_we               : std_logic;
+   signal tileSize_RdData           : std_logic_vector(47 downto 0);
+   
    -- Texture RAM
    signal TextureRamAddr            : unsigned(7 downto 0) := (others => '0');    
    signal TextureRam0Data           : std_logic_vector(15 downto 0) := (others => '0');
@@ -233,6 +250,7 @@ architecture arch of RDP is
    signal TextureRamDataIn          : tTextureRamData;
    signal TextureReadData           : tTextureRamData;
    signal TextureReadAddr           : tTextureRamAddr;    
+   signal TextureReadEna            : std_logic;    
    
    -- Fill line
    signal stall_raster              : std_logic := '0';
@@ -796,6 +814,15 @@ begin
       export_command_done     => export_command_done, 
       -- synthesis translate_on      
                               
+      tile_Command            => tile_Command,         
+      tile_usePipe            => tile_usePipe,
+      tileSettings_WrAddr     => tileSettings_WrAddr,                
+      tileSettings_WrData     => tileSettings_WrData,                
+      tileSettings_we         => tileSettings_we,                    
+      tileSize_WrAddr         => tileSize_WrAddr,                    
+      tileSize_WrData         => tileSize_WrData,                    
+      tileSize_we             => tileSize_we,                                        
+                              
       settings_scissor        => settings_scissor,   
       settings_Z              => settings_Z,   
       settings_otherModes     => settings_otherModes, 
@@ -807,10 +834,60 @@ begin
       settings_combineMode    => settings_combineMode,
       settings_textureImage   => settings_textureImage,
       settings_Z_base         => settings_Z_base,
-      settings_colorImage     => settings_colorImage,
-      settings_tile           => settings_tile,      
+      settings_colorImage     => settings_colorImage,  
       settings_loadtype       => settings_loadtype      
    );
+   
+   tile_RdAddr <= tile_pipe when (tile_usePipe = '1') else tile_Command;
+   
+   itileSettings : entity mem.RamMLAB
+	GENERIC MAP 
+   (
+      width      => 47, -- 56 - 1 - 8 = 47
+      widthad    => 3
+	)
+	PORT MAP (
+      inclock    => clk1x,
+      wren       => tileSettings_we,
+      data       => tileSettings_WrData,
+      wraddress  => tileSettings_WrAddr,
+      rdaddress  => tile_RdAddr,
+      q          => tileSettings_RdData
+	);
+   
+   itileSize : entity mem.RamMLAB
+	GENERIC MAP 
+   (
+      width      => 48, -- 56 - 8 = 48
+      widthad    => 3
+	)
+	PORT MAP (
+      inclock    => clk1x,
+      wren       => tileSize_we,
+      data       => tileSize_WrData,
+      wraddress  => tileSize_WrAddr,
+      rdaddress  => tile_RdAddr,
+      q          => tileSize_RdData
+	);
+   
+   settings_tile.Tile_sl <= unsigned(tileSize_RdData(47 downto 36));
+   settings_tile.Tile_tl <= unsigned(tileSize_RdData(35 downto 24));
+   settings_tile.Tile_sh <= unsigned(tileSize_RdData(23 downto 12));
+   settings_tile.Tile_th <= unsigned(tileSize_RdData(11 downto  0));
+   
+   settings_tile.Tile_format   <= unsigned(tileSettings_RdData(46 downto 44));
+   settings_tile.Tile_size     <= unsigned(tileSettings_RdData(43 downto 42));
+   settings_tile.Tile_line     <= unsigned(tileSettings_RdData(41 downto 33));
+   settings_tile.Tile_TmemAddr <= unsigned(tileSettings_RdData(32 downto 24));
+   settings_tile.Tile_palette  <= unsigned(tileSettings_RdData(23 downto 20));
+   settings_tile.Tile_clampT   <= tileSettings_RdData(19);
+   settings_tile.Tile_mirrorT  <= tileSettings_RdData(18);
+   settings_tile.Tile_maskT    <= unsigned(tileSettings_RdData(17 downto 14));
+   settings_tile.Tile_shiftT   <= unsigned(tileSettings_RdData(13 downto 10));
+   settings_tile.Tile_clampS   <= tileSettings_RdData(9);
+   settings_tile.Tile_mirrorS  <= tileSettings_RdData(8);
+   settings_tile.Tile_maskS    <= unsigned(tileSettings_RdData( 7 downto  4));
+   settings_tile.Tile_shiftS   <= unsigned(tileSettings_RdData( 3 downto  0));
    
    -- synthesis translate_off
    commandIsIdle_out <= commandIsIdle;
@@ -959,7 +1036,7 @@ begin
          wren_a      => TextureRamWE(i),
          
          clock_b     => clk1x,
-         clken_b     => pipeIn_trigger,
+         clken_b     => TextureReadEna,
          address_b   => TextureReadAddr(i),
          data_b      => 16x"0",
          wren_b      => '0',
@@ -1134,7 +1211,10 @@ begin
       pipeIn_Z                => pipeIn_Z,
       pipeIn_dzPix            => pipeIn_dzPix,
       pipeIn_copySize         => pipeIn_copySize,
+      
+      pipe_tile               => tile_pipe,
 
+      TextureReadEna          => TextureReadEna,
       TextureAddr             => TextureReadAddr,
       TextureRamData          => TextureReadData,
       

@@ -9,6 +9,8 @@ entity RDP_TexTile is
    (
       clk1x          : in  std_logic;
       trigger        : in  std_logic;
+      step2          : in  std_logic;
+      mode2          : in  std_logic;
    
       coordIn        : in  signed(15 downto 0);
       tile_max       : in  unsigned(11 downto 0);

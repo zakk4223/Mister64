@@ -1,0 +1,64 @@
+name: Database build 
+on: 
+  workflow_dispatch:
+  release:
+    types: [published]
+  schedule:
+    - cron: '0 0,12 * * *'
+
+permissions: write-all
+jobs:
+  n64-dev:
+    runs-on: ubuntu-latest
+    env:
+      DB_ID: n64_dev
+      GITHUB_TOKEN: ${{secrets.GITHUB_TOKEN}}
+    steps:
+      - name: Install deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install detox sharutils pip
+
+      - uses: actions/checkout@v2
+      - uses: fregante/setup-git-user@v2
+
+      - name: Get Latest N64 dev release
+        id: n64releaseinfo
+        uses: cardinalby/git-get-release-action@v1
+        with:
+          prerelease: true
+          latest: true
+          repo: RobertPeip/Mister64
+      - name: Create external files csv 
+        run: |
+           N64_DB_DOWNLOAD_URL="https://raw.githubusercontent.com/MiSTer-devel/N64_ROM_Database/main/N64-database.txt"
+           N64_DB_FNAME=`basename ${N64_DB_DOWNLOAD_URL}`
+           curl -L $N64_DB_DOWNLOAD_URL -o $N64_DB_FNAME
+           DB_SIZE=`/usr/bin/stat -c "%s" $N64_DB_FNAME`
+           DB_CSUM=`md5sum $N64_DB_FNAME | awk '{print $1}'`
+
+           N64_DOWNLOAD_URL="${{ fromJSON(steps.n64releaseinfo.outputs.assets)[0].browser_download_url }}"
+           RELEASE_FNAME=`basename ${N64_DOWNLOAD_URL}`
+           curl -L $N64_DOWNLOAD_URL -o $RELEASE_FNAME
+           RELEASE_SIZE=`/usr/bin/stat -c "%s" $RELEASE_FNAME`
+           RELEASE_CSUM=`md5sum $RELEASE_FNAME | awk '{print $1}'`
+           echo "RELEASE_FNAME=${RELEASE_FNAME}" >> $GITHUB_ENV
+           echo "File,URL,Size,Md5Sum,Tags,Attributes,Comment" > external_files.csv
+           echo "_Console/${RELEASE_FNAME},${N64_DOWNLOAD_URL},${RELEASE_SIZE},${RELEASE_CSUM},,," >> external_files.csv
+           echo "games/N64/${N64_DB_FNAME},${N64_DB_DOWNLOAD_URL},${DB_SIZE},${DB_CSUM},,overwrite:true," >> external_files.csv
+           rm ${RELEASE_FNAME}
+           rm ${N64_DB_FNAME}
+      - name: Create database
+        run: set -o pipefail && curl --fail --location https://raw.githubusercontent.com/theypsilon/Downloader_DB-Template_MiSTer/main/.github/build_db.py | python3 - -d
+      - name: Push database
+        run: |
+          if [ ! -f db.json ]; then exit 0; fi
+          zip db.json.zip db.json
+          git checkout --orphan db
+          git reset
+          git add db.json db.json.zip 
+          git commit -m "Updating N64 Dev"
+          git push --force origin db
+
+
+

@@ -216,7 +216,7 @@ architecture arch of RDP is
    signal settings_colorImage       : tsettings_colorImage;
    signal settings_textureImage     : tsettings_textureImage;
    signal settings_Z_base           : unsigned(24 downto 0);
-   signal settings_tile             : tsettings_tile;
+   signal settings_tile             : tsettings_tile := SETTINGSTILEINIT;
    signal settings_loadtype         : tsettings_loadtype;
    
    -- tile settings
@@ -375,6 +375,15 @@ architecture arch of RDP is
    signal export_TexColor1          : rdp_export_type;
    signal export_TexColor2          : rdp_export_type;
    signal export_TexColor3          : rdp_export_type;
+   signal export2_TexFetch0         : rdp_export_type;
+   signal export2_TexFetch1         : rdp_export_type;
+   signal export2_TexFetch2         : rdp_export_type;
+   signal export2_TexFetch3         : rdp_export_type;
+   signal export2_texmode           : unsigned(1 downto 0);
+   signal export2_TexColor0         : rdp_export_type;
+   signal export2_TexColor1         : rdp_export_type;
+   signal export2_TexColor2         : rdp_export_type;
+   signal export2_TexColor3         : rdp_export_type;
    signal export_Comb               : rdp_export_type;
    signal export_FBMem              : rdp_export_type;
    signal export_Z                  : rdp_export_type;
@@ -1246,7 +1255,16 @@ begin
       export_TexColor0        => export_TexColor0,   
       export_TexColor1        => export_TexColor1,   
       export_TexColor2        => export_TexColor2,   
-      export_TexColor3        => export_TexColor3,   
+      export_TexColor3        => export_TexColor3,        
+      export2_TexFetch0       => export2_TexFetch0,   
+      export2_TexFetch1       => export2_TexFetch1,   
+      export2_TexFetch2       => export2_TexFetch2,   
+      export2_TexFetch3       => export2_TexFetch3,   
+      export2_texmode         => export2_texmode,   
+      export2_TexColor0       => export2_TexColor0,   
+      export2_TexColor1       => export2_TexColor1,   
+      export2_TexColor2       => export2_TexColor2,   
+      export2_TexColor3       => export2_TexColor3,   
       export_Comb             => export_Comb,   
       export_FBMem            => export_FBMem,   
       export_Z                => export_Z,   
@@ -1540,6 +1558,9 @@ begin
          variable export_copyAddr   : unsigned(31 downto 0);
          variable export_copyData   : unsigned(63 downto 0);
          variable useTexture        : std_logic;
+         variable useTexture2       : std_logic;
+         variable texfetch_count    : integer;
+         variable texcolor_count    : integer;
       begin
    
          file_open(f_status, outfile, "R:\\rdp_n64_sim.txt", write_mode);
@@ -1586,57 +1607,114 @@ begin
                export_gpu64(17, tracecounts_out(17), export_LoadData,  outfile); tracecounts_out(17) <= tracecounts_out(17) + 1;
                export_gpu32(18, tracecounts_out(18), export_LoadValue, outfile); tracecounts_out(18) <= tracecounts_out(18) + 1;
             end if;
-
-            useTexture := '0';
-            case (to_integer(settings_combineMode.combine_sub_a_R_1)) is  when 1 | 2 => useTexture := '1'; when others => null;  end case;
-            case (to_integer(settings_combineMode.combine_sub_b_R_1)) is  when 1 | 2 => useTexture := '1'; when others => null;  end case;
-            case (to_integer(settings_combineMode.combine_mul_R_1))   is  when 1 | 2 | 8 | 9 | 13 | 14 => useTexture := '1'; when others => null;  end case;
-            case (to_integer(settings_combineMode.combine_add_R_1))   is  when 1 | 2 => useTexture := '1'; when others => null;  end case;
-            case (to_integer(settings_combineMode.combine_sub_a_A_1)) is  when 1 | 2 => useTexture := '1'; when others => null;  end case;
-            case (to_integer(settings_combineMode.combine_sub_b_A_1)) is  when 1 | 2 => useTexture := '1'; when others => null;  end case;
-            case (to_integer(settings_combineMode.combine_mul_A_1))   is  when 1 | 2 | 6 => useTexture := '1'; when others => null;  end case;
-            case (to_integer(settings_combineMode.combine_add_A_1))   is  when 1 | 2 => useTexture := '1'; when others => null;  end case;
-            
-            case (to_integer(settings_combineMode.combine_sub_a_R_0)) is  when 1 | 2 => useTexture := '1'; when others => null;  end case;
-            case (to_integer(settings_combineMode.combine_sub_b_R_0)) is  when 1 | 2 => useTexture := '1'; when others => null;  end case;
-            case (to_integer(settings_combineMode.combine_mul_R_0))   is  when 1 | 2 | 8 | 9 | 13 | 14 => useTexture := '1'; when others => null;  end case;
-            case (to_integer(settings_combineMode.combine_add_R_0))   is  when 1 | 2 => useTexture := '1'; when others => null;  end case;
-            case (to_integer(settings_combineMode.combine_sub_a_A_0)) is  when 1 | 2 => useTexture := '1'; when others => null;  end case;
-            case (to_integer(settings_combineMode.combine_sub_b_A_0)) is  when 1 | 2 => useTexture := '1'; when others => null;  end case;
-            case (to_integer(settings_combineMode.combine_mul_A_0))   is  when 1 | 2 | 6 => useTexture := '1'; when others => null;  end case;
-            case (to_integer(settings_combineMode.combine_add_A_0))   is  when 1 | 2 => useTexture := '1'; when others => null;  end case;
             
             if (export_pipeDone = '1') then
+            
+               useTexture := '0';
+               case (to_integer(settings_combineMode.combine_sub_a_R_1)) is  when 1 | 2 => useTexture := '1'; when others => null;  end case;
+               case (to_integer(settings_combineMode.combine_sub_b_R_1)) is  when 1 | 2 => useTexture := '1'; when others => null;  end case;
+               case (to_integer(settings_combineMode.combine_mul_R_1))   is  when 1 | 2 | 8 | 9 | 13 | 14 => useTexture := '1'; when others => null;  end case;
+               case (to_integer(settings_combineMode.combine_add_R_1))   is  when 1 | 2 => useTexture := '1'; when others => null;  end case;
+               case (to_integer(settings_combineMode.combine_sub_a_A_1)) is  when 1 | 2 => useTexture := '1'; when others => null;  end case;
+               case (to_integer(settings_combineMode.combine_sub_b_A_1)) is  when 1 | 2 => useTexture := '1'; when others => null;  end case;
+               case (to_integer(settings_combineMode.combine_mul_A_1))   is  when 1 | 2 | 6 => useTexture := '1'; when others => null;  end case;
+               case (to_integer(settings_combineMode.combine_add_A_1))   is  when 1 | 2 => useTexture := '1'; when others => null;  end case;
+               
+               case (to_integer(settings_combineMode.combine_sub_a_R_0)) is  when 1 | 2 => useTexture := '1'; when others => null;  end case;
+               case (to_integer(settings_combineMode.combine_sub_b_R_0)) is  when 1 | 2 => useTexture := '1'; when others => null;  end case;
+               case (to_integer(settings_combineMode.combine_mul_R_0))   is  when 1 | 2 | 8 | 9 | 13 | 14 => useTexture := '1'; when others => null;  end case;
+               case (to_integer(settings_combineMode.combine_add_R_0))   is  when 1 | 2 => useTexture := '1'; when others => null;  end case;
+               case (to_integer(settings_combineMode.combine_sub_a_A_0)) is  when 1 | 2 => useTexture := '1'; when others => null;  end case;
+               case (to_integer(settings_combineMode.combine_sub_b_A_0)) is  when 1 | 2 => useTexture := '1'; when others => null;  end case;
+               case (to_integer(settings_combineMode.combine_mul_A_0))   is  when 1 | 2 | 6 => useTexture := '1'; when others => null;  end case;
+               case (to_integer(settings_combineMode.combine_add_A_0))   is  when 1 | 2 => useTexture := '1'; when others => null;  end case;
+            
                export_gpu32( 3, tracecounts_out( 3), export_pipeO,    outfile); tracecounts_out( 3) <= tracecounts_out( 3) + 1;
                export_gpu32( 4, tracecounts_out( 4), export_color,    outfile); tracecounts_out( 4) <= tracecounts_out( 4) + 1;
+               
+               texfetch_count := tracecounts_out(7);
+               texcolor_count := tracecounts_out(13);
+               
                if (useTexture = '1') then
                   export_gpu32(19, tracecounts_out(19), export_LOD,      outfile); tracecounts_out(19) <= tracecounts_out(19) + 1;
                   export_gpu32(11, tracecounts_out(11), export_TexCoord, outfile); tracecounts_out(11) <= tracecounts_out(11) + 1;
                   if (settings_otherModes.sampleType = '1' or settings_otherModes.enTlut = '1') then
-                     export_gpu32(7, tracecounts_out(7) + 0, export_TexFetch0, outfile);
-                     export_gpu32(7, tracecounts_out(7) + 1, export_TexFetch1, outfile);
-                     export_gpu32(7, tracecounts_out(7) + 2, export_TexFetch2, outfile);
-                     export_gpu32(7, tracecounts_out(7) + 3, export_TexFetch3, outfile);
-                     tracecounts_out(7) <= tracecounts_out(7) + 4;
+                     export_gpu32(7, texfetch_count + 0, export_TexFetch0, outfile);
+                     export_gpu32(7, texfetch_count + 1, export_TexFetch1, outfile);
+                     export_gpu32(7, texfetch_count + 2, export_TexFetch2, outfile);
+                     export_gpu32(7, texfetch_count + 3, export_TexFetch3, outfile);
+                     texfetch_count := texfetch_count + 4;
                   else
-                     export_gpu32(7, tracecounts_out(7), export_TexFetch0, outfile);
-                     tracecounts_out(7) <= tracecounts_out(7) + 1;
+                     export_gpu32(7, texfetch_count, export_TexFetch0, outfile);
+                     texfetch_count := texfetch_count + 1;
                   end if;
                   
                   if (export_texmode = TEXMODE_UNFILTERED) then                 
-                     export_gpu32(13, tracecounts_out(13), export_TexColor0, outfile); tracecounts_out(13) <= tracecounts_out(13) + 1;
+                     export_gpu32(13, texcolor_count, export_TexColor0, outfile); 
+                     texcolor_count := texcolor_count + 1;
                   elsif (export_texmode = TEXMODE_UPPER) then 
-                     export_gpu32(13, tracecounts_out(13) + 0, export_TexColor1, outfile);
-                     export_gpu32(13, tracecounts_out(13) + 1, export_TexColor2, outfile);
-                     export_gpu32(13, tracecounts_out(13) + 2, export_TexColor3, outfile);
-                     tracecounts_out(13) <= tracecounts_out(13) + 3;
+                     export_gpu32(13, texcolor_count + 0, export_TexColor1, outfile);
+                     export_gpu32(13, texcolor_count + 1, export_TexColor2, outfile);
+                     export_gpu32(13, texcolor_count + 2, export_TexColor3, outfile);
+                     texcolor_count := texcolor_count + 3;
                   elsif (export_texmode = TEXMODE_LOWER) then 
-                     export_gpu32(13, tracecounts_out(13) + 0, export_TexColor1, outfile);
-                     export_gpu32(13, tracecounts_out(13) + 1, export_TexColor2, outfile);
-                     export_gpu32(13, tracecounts_out(13) + 2, export_TexColor0, outfile);
-                     tracecounts_out(13) <= tracecounts_out(13) + 3;
+                     export_gpu32(13, texcolor_count + 0, export_TexColor1, outfile);
+                     export_gpu32(13, texcolor_count + 1, export_TexColor2, outfile);
+                     export_gpu32(13, texcolor_count + 2, export_TexColor0, outfile);
+                     texcolor_count := texcolor_count + 3;
                   end if;
                end if;
+               
+               useTexture2 := '0';
+               case (to_integer(settings_combineMode.combine_sub_a_R_1)) is  when 2 => useTexture2 := '1'; when others => null;  end case;
+               case (to_integer(settings_combineMode.combine_sub_b_R_1)) is  when 2 => useTexture2 := '1'; when others => null;  end case;
+               case (to_integer(settings_combineMode.combine_mul_R_1))   is  when 2 | 9 => useTexture2 := '1'; when others => null;  end case;
+               case (to_integer(settings_combineMode.combine_add_R_1))   is  when 2 => useTexture2 := '1'; when others => null;  end case;
+               case (to_integer(settings_combineMode.combine_sub_a_A_1)) is  when 2 => useTexture2 := '1'; when others => null;  end case;
+               case (to_integer(settings_combineMode.combine_sub_b_A_1)) is  when 2 => useTexture2 := '1'; when others => null;  end case;
+               case (to_integer(settings_combineMode.combine_mul_A_1))   is  when 2 => useTexture2 := '1'; when others => null;  end case;
+               case (to_integer(settings_combineMode.combine_add_A_1))   is  when 2 => useTexture2 := '1'; when others => null;  end case;
+               
+               case (to_integer(settings_combineMode.combine_sub_a_R_0)) is  when 2 => useTexture2 := '1'; when others => null;  end case;
+               case (to_integer(settings_combineMode.combine_sub_b_R_0)) is  when 2 => useTexture2 := '1'; when others => null;  end case;
+               case (to_integer(settings_combineMode.combine_mul_R_0))   is  when 2 | 9 => useTexture2 := '1'; when others => null;  end case;
+               case (to_integer(settings_combineMode.combine_add_R_0))   is  when 2 => useTexture2 := '1'; when others => null;  end case;
+               case (to_integer(settings_combineMode.combine_sub_a_A_0)) is  when 2 => useTexture2 := '1'; when others => null;  end case;
+               case (to_integer(settings_combineMode.combine_sub_b_A_0)) is  when 2 => useTexture2 := '1'; when others => null;  end case;
+               case (to_integer(settings_combineMode.combine_mul_A_0))   is  when 2 => useTexture2 := '1'; when others => null;  end case;
+               case (to_integer(settings_combineMode.combine_add_A_0))   is  when 2 => useTexture2 := '1'; when others => null;  end case;
+               
+               if (useTexture2 = '1') then
+                  if (settings_otherModes.sampleType = '1' or settings_otherModes.enTlut = '1') then
+                     export_gpu32(7, texfetch_count + 0, export2_TexFetch0, outfile);
+                     export_gpu32(7, texfetch_count + 1, export2_TexFetch1, outfile);
+                     export_gpu32(7, texfetch_count + 2, export2_TexFetch2, outfile);
+                     export_gpu32(7, texfetch_count + 3, export2_TexFetch3, outfile);
+                     texfetch_count := texfetch_count + 4;
+                  else
+                     export_gpu32(7, texfetch_count, export2_TexFetch0, outfile);
+                     texfetch_count := texfetch_count + 1;
+                  end if;
+                  
+                  if (export2_texmode = TEXMODE_UNFILTERED) then                 
+                     export_gpu32(13, texcolor_count, export2_TexColor0, outfile); 
+                     texcolor_count := texcolor_count + 1;
+                  elsif (export2_texmode = TEXMODE_UPPER) then 
+                     export_gpu32(13, texcolor_count + 0, export2_TexColor1, outfile);
+                     export_gpu32(13, texcolor_count + 1, export2_TexColor2, outfile);
+                     export_gpu32(13, texcolor_count + 2, export2_TexColor3, outfile);
+                     texcolor_count := texcolor_count + 3;
+                  elsif (export2_texmode = TEXMODE_LOWER) then 
+                     export_gpu32(13, texcolor_count + 0, export2_TexColor1, outfile);
+                     export_gpu32(13, texcolor_count + 1, export2_TexColor2, outfile);
+                     export_gpu32(13, texcolor_count + 2, export2_TexColor0, outfile);
+                     texcolor_count := texcolor_count + 3;
+                  end if;
+               end if;
+               
+               tracecounts_out(7)  <= texfetch_count;
+               tracecounts_out(13) <= texcolor_count;
+               
                export_gpu32(23, tracecounts_out(23), export_Comb    , outfile); tracecounts_out(23) <= tracecounts_out(23) + 1;
                if (settings_otherModes.imageRead = '1') then
                   export_gpu32(24, tracecounts_out(24), export_FBMem   , outfile); tracecounts_out(24) <= tracecounts_out(24) + 1;

@@ -39,11 +39,18 @@ entity RDP_TexFetch is
       export_TexFt_db1     : out tcolor4_u32;
       export_TexFt_db3     : out tcolor4_u32;
       export_TexFt_mode    : out unsigned(1 downto 0);
+      export2_TexFt_addr   : out tcolor4_u32;
+      export2_TexFt_data   : out tcolor4_u32;
+      export2_TexFt_db1    : out tcolor4_u32;
+      export2_TexFt_db3    : out tcolor4_u32;
+      export2_TexFt_mode   : out unsigned(1 downto 0);
       -- synthesis translate_on
       
-      tex_color_out        : out tcolor3_u8;
-      tex_alpha_out        : out unsigned(7 downto 0);
-      tex_copy             : out unsigned(63 downto 0)
+      tex_color_out        : out tcolor3_u8 := (others  => (others => '0'));
+      tex_alpha_out        : out unsigned(7 downto 0) := (others => '0');
+      tex2_color_out       : out tcolor3_u8 := (others  => (others => '0'));
+      tex2_alpha_out       : out unsigned(7 downto 0) := (others => '0');
+      tex_copy             : out unsigned(63 downto 0) := (others => '0')
    );
 end entity;
 
@@ -70,20 +77,34 @@ architecture arch of RDP_TexFetch is
 
    -- first cycle   
    signal settings_tile_1        : tsettings_tile; 
-   signal tex_data_1             : tTextureRamData;   
+   signal settings_tile0_1       : tsettings_tile := SETTINGSTILEINIT; 
+   signal settings_tile1_1       : tsettings_tile := SETTINGSTILEINIT; 
+   signal tex_data_1             : tTextureRamData := (others => (others => '0'));   
    signal tex_data               : tTextureRamData;   
    
-   signal frac_S_1               : unsigned(4 downto 0) := (others => '0');
-   signal frac_T_1               : unsigned(4 downto 0) := (others => '0');
+   signal frac_S_1               : unsigned(4 downto 0);
+   signal frac_T_1               : unsigned(4 downto 0);   
+   signal frac_S_1_s1            : unsigned(4 downto 0) := (others => '0');
+   signal frac_T_1_s1            : unsigned(4 downto 0) := (others => '0');   
+   signal frac_S_1_s2            : unsigned(4 downto 0) := (others => '0');
+   signal frac_T_1_s2            : unsigned(4 downto 0) := (others => '0');
    
    signal select0next            : unsigned(2 downto 0);
    signal select1next            : unsigned(2 downto 0);
    signal select2next            : unsigned(2 downto 0);
    signal select3next            : unsigned(2 downto 0);
-   signal select0                : integer range 0 to 7 := 0;
-   signal select1                : integer range 0 to 7 := 0;
-   signal select2                : integer range 0 to 7 := 0;
-   signal select3                : integer range 0 to 7 := 0;
+   signal select0                : integer range 0 to 7;
+   signal select1                : integer range 0 to 7;
+   signal select2                : integer range 0 to 7;
+   signal select3                : integer range 0 to 7;
+   signal select0_s1             : integer range 0 to 7 := 0;
+   signal select1_s1             : integer range 0 to 7 := 0;
+   signal select2_s1             : integer range 0 to 7 := 0;
+   signal select3_s1             : integer range 0 to 7 := 0;
+   signal select0_s2             : integer range 0 to 7 := 0;
+   signal select1_s2             : integer range 0 to 7 := 0;
+   signal select2_s2             : integer range 0 to 7 := 0;
+   signal select3_s2             : integer range 0 to 7 := 0;
                                  
    signal pal4Index0Next         : unsigned(1 downto 0);
    signal pal4Index1Next         : unsigned(1 downto 0);
@@ -94,14 +115,30 @@ architecture arch of RDP_TexFetch is
    signal pal8Index2Next         : std_logic;
    signal pal8Index3Next         : std_logic;
                                  
-   signal pal4Index0             : unsigned(1 downto 0) := (others => '0');
-   signal pal4Index1             : unsigned(1 downto 0) := (others => '0');
-   signal pal4Index2             : unsigned(1 downto 0) := (others => '0');
-   signal pal4Index3             : unsigned(1 downto 0) := (others => '0');
-   signal pal8Index0             : std_logic := '0';
-   signal pal8Index1             : std_logic := '0';
-   signal pal8Index2             : std_logic := '0';
-   signal pal8Index3             : std_logic := '0';
+   signal pal4Index0             : unsigned(1 downto 0);
+   signal pal4Index1             : unsigned(1 downto 0);
+   signal pal4Index2             : unsigned(1 downto 0);
+   signal pal4Index3             : unsigned(1 downto 0);
+   signal pal8Index0             : std_logic;
+   signal pal8Index1             : std_logic;
+   signal pal8Index2             : std_logic;
+   signal pal8Index3             : std_logic;
+   signal pal4Index0_s1          : unsigned(1 downto 0) := (others => '0');
+   signal pal4Index1_s1          : unsigned(1 downto 0) := (others => '0');
+   signal pal4Index2_s1          : unsigned(1 downto 0) := (others => '0');
+   signal pal4Index3_s1          : unsigned(1 downto 0) := (others => '0');
+   signal pal8Index0_s1          : std_logic := '0';
+   signal pal8Index1_s1          : std_logic := '0';
+   signal pal8Index2_s1          : std_logic := '0';
+   signal pal8Index3_s1          : std_logic := '0';
+   signal pal4Index0_s2          : unsigned(1 downto 0) := (others => '0');
+   signal pal4Index1_s2          : unsigned(1 downto 0) := (others => '0');
+   signal pal4Index2_s2          : unsigned(1 downto 0) := (others => '0');
+   signal pal4Index3_s2          : unsigned(1 downto 0) := (others => '0');
+   signal pal8Index0_s2          : std_logic := '0';
+   signal pal8Index1_s2          : std_logic := '0';
+   signal pal8Index2_s2          : std_logic := '0';
+   signal pal8Index3_s2          : std_logic := '0';
    
    signal tex_in0                : unsigned(15 downto 0);
    signal tex_in1                : unsigned(15 downto 0);
@@ -123,16 +160,32 @@ architecture arch of RDP_TexFetch is
    signal tex8_3                 : unsigned(7 downto 0);
   
    -- synthesis translate_off
-   signal addr_base_1            : unsigned(11 downto 0) := (others => '0');
-   signal addr_base_1N           : unsigned(11 downto 0) := (others => '0');
+   signal addr_base_1            : unsigned(11 downto 0);
+   signal addr_base_1N           : unsigned(11 downto 0);   
+   signal addr_base1_1           : unsigned(11 downto 0) := (others => '0');
+   signal addr_base1_1N          : unsigned(11 downto 0) := (others => '0');   
+   signal addr_base2_1           : unsigned(11 downto 0) := (others => '0');
+   signal addr_base2_1N          : unsigned(11 downto 0) := (others => '0');
    -- synthesis translate_on
   
    -- second cycle
    signal settings_tile_2        : tsettings_tile;
+   signal settings_tile0_2       : tsettings_tile := SETTINGSTILEINIT;
+   signal settings_tile1_2       : tsettings_tile := SETTINGSTILEINIT;
    
-   signal frac_S_2               : signed(5 downto 0) := (others => '0');
-   signal frac_T_2               : signed(5 downto 0) := (others => '0');
-   signal texmode                : unsigned(1 downto 0) := (others => '0');
+   signal frac_S_2_calc          : signed(5 downto 0);
+   signal frac_T_2_calc          : signed(5 downto 0);
+   signal frac_S_2               : signed(5 downto 0);
+   signal frac_T_2               : signed(5 downto 0);
+   signal frac_S_2_s1            : signed(5 downto 0) := (others => '0');
+   signal frac_T_2_s1            : signed(5 downto 0) := (others => '0');
+   signal frac_S_2_s2            : signed(5 downto 0) := (others => '0');
+   signal frac_T_2_s2            : signed(5 downto 0) := (others => '0');
+   
+   signal texmode_calc           : unsigned(1 downto 0);
+   signal texmode                : unsigned(1 downto 0);
+   signal texmode_s1             : unsigned(1 downto 0) := (others => '0');
+   signal texmode_s2             : unsigned(1 downto 0) := (others => '0');
    
    signal tex_color_read         : tcolor3_u8 := (others => (others => '0'));
    signal tex_alpha_read         : unsigned(7 downto 0) := (others => '0');
@@ -157,6 +210,9 @@ architecture arch of RDP_TexFetch is
    
    type tfilter_sum is array(0 to 3) of signed(10 downto 0);
    signal filter_sum2            : tfilter_sum;
+   
+   signal tex_color_select       : tcolor3_u8;
+   signal tex_alpha_select       : unsigned(7 downto 0);
    
    -- synthesis translate_off
    signal exportNext_TexFt_addr  : tcolor4_u32;
@@ -276,6 +332,11 @@ begin
       else tex_addr(3) <= (others => '0'); tex_addr(7) <= (others => '0'); end if;
    
       if (settings_otherModes.enTlut = '1') then
+         select0next(2) <= '0';
+         select1next(2) <= '0';
+         select2next(2) <= '0';
+         select3next(2) <= '0';
+      
          case (settings_tile_1.Tile_size) is
             when SIZE_4BIT =>
                tex_addr(4) <= std_logic_vector(settings_tile_1.Tile_palette) & std_logic_vector(tex4_0);
@@ -300,10 +361,6 @@ begin
                tex_addr(5) <= std_logic_vector(tex_in1(15 downto 8));
                tex_addr(6) <= std_logic_vector(tex_in2(15 downto 8));
                tex_addr(7) <= std_logic_vector(tex_in3(15 downto 8));
-               select0next(2) <= '0';
-               select1next(2) <= '0';
-               select2next(2) <= '0';
-               select3next(2) <= '0';
                
             when others => null;
          end case;
@@ -337,6 +394,31 @@ begin
       
    end process;
    
+   settings_tile_1 <= settings_tile1_1 when (step2 = '1') else settings_tile0_1; 
+   
+   frac_S_1   <= frac_S_1_s2   when (step2 = '1') else frac_S_1_s1;  
+   frac_T_1   <= frac_T_1_s2   when (step2 = '1') else frac_T_1_s1;  
+                                                       
+   select0    <= select0_s2    when (step2 = '1') else select0_s1;   
+   select1    <= select1_s2    when (step2 = '1') else select1_s1;   
+   select2    <= select2_s2    when (step2 = '1') else select2_s1;   
+   select3    <= select3_s2    when (step2 = '1') else select3_s1;   
+                                                       
+   pal4Index0 <= pal4Index0_s2 when (step2 = '1') else pal4Index0_s1;
+   pal4Index1 <= pal4Index1_s2 when (step2 = '1') else pal4Index1_s1;
+   pal4Index2 <= pal4Index2_s2 when (step2 = '1') else pal4Index2_s1;
+   pal4Index3 <= pal4Index3_s2 when (step2 = '1') else pal4Index3_s1;
+                                                       
+   pal8Index0 <= pal8Index0_s2 when (step2 = '1') else pal8Index0_s1;
+   pal8Index1 <= pal8Index1_s2 when (step2 = '1') else pal8Index1_s1;
+   pal8Index2 <= pal8Index2_s2 when (step2 = '1') else pal8Index2_s1;
+   pal8Index3 <= pal8Index3_s2 when (step2 = '1') else pal8Index3_s1;
+   
+   -- synthesis translate_off
+   addr_base_1  <= addr_base2_1  when (step2 = '1') else addr_base1_1; 
+   addr_base_1N <= addr_base2_1N when (step2 = '1') else addr_base1_1N;
+   -- synthesis translate_on
+   
    process (clk1x)
    begin
       if rising_edge(clk1x) then
@@ -347,29 +429,58 @@ begin
 
          if (trigger = '1') then
          
-            settings_tile_1 <= settings_tile;
+            settings_tile0_1 <= settings_tile;
          
-            frac_S_1 <= frac_S;
-            frac_T_1 <= frac_T;
+            frac_S_1_s1 <= frac_S;
+            frac_T_1_s1 <= frac_T;
             
-            select0 <= to_integer(select0next);
-            select1 <= to_integer(select1next);
-            select2 <= to_integer(select2next);
-            select3 <= to_integer(select3next);
+            select0_s1 <= to_integer(select0next);
+            select1_s1 <= to_integer(select1next);
+            select2_s1 <= to_integer(select2next);
+            select3_s1 <= to_integer(select3next);
             
-            pal4Index0 <= pal4Index0Next;
-            pal4Index1 <= pal4Index1Next;
-            pal4Index2 <= pal4Index2Next;
-            pal4Index3 <= pal4Index3Next;
+            pal4Index0_s1 <= pal4Index0Next;
+            pal4Index1_s1 <= pal4Index1Next;
+            pal4Index2_s1 <= pal4Index2Next;
+            pal4Index3_s1 <= pal4Index3Next;
             
-            pal8Index0 <= pal8Index0Next;
-            pal8Index1 <= pal8Index1Next;
-            pal8Index2 <= pal8Index2Next;
-            pal8Index3 <= pal8Index3Next;
+            pal8Index0_s1 <= pal8Index0Next;
+            pal8Index1_s1 <= pal8Index1Next;
+            pal8Index2_s1 <= pal8Index2Next;
+            pal8Index3_s1 <= pal8Index3Next;
             
             -- synthesis translate_off
-            addr_base_1  <= addr_base;
-            addr_base_1N <= addr_baseN;
+            addr_base1_1  <= addr_base;
+            addr_base1_1N <= addr_baseN;
+            -- synthesis translate_on
+            
+         end if;
+         
+         if (step2 = '1') then
+            
+            settings_tile1_1 <= settings_tile;
+            
+            frac_S_1_s2 <= frac_S;
+            frac_T_1_s2 <= frac_T;
+            
+            select0_s2 <= to_integer(select0next);
+            select1_s2 <= to_integer(select1next);
+            select2_s2 <= to_integer(select2next);
+            select3_s2 <= to_integer(select3next);
+            
+            pal4Index0_s2 <= pal4Index0Next;
+            pal4Index1_s2 <= pal4Index1Next;
+            pal4Index2_s2 <= pal4Index2Next;
+            pal4Index3_s2 <= pal4Index3Next;
+            
+            pal8Index0_s2 <= pal8Index0Next;
+            pal8Index1_s2 <= pal8Index1Next;
+            pal8Index2_s2 <= pal8Index2Next;
+            pal8Index3_s2 <= pal8Index3Next;
+            
+            -- synthesis translate_off
+            addr_base2_1  <= addr_base;
+            addr_base2_1N <= addr_baseN;
             -- synthesis translate_on
             
          end if;
@@ -422,7 +533,7 @@ begin
       step2                => step2,
       mode2                => mode2,
                                              
-      error_texMode        => error_texMode,      
+      error_texMode_out    => error_texMode,      
                                              
       settings_otherModes  => settings_otherModes,
       settings_tile_1      => settings_tile_1,      
@@ -455,8 +566,6 @@ begin
       step2                => step2,
       mode2                => mode2,
                                              
-      error_texMode        => open,      
-                                             
       settings_otherModes  => settings_otherModes,
       settings_tile_1      => settings_tile_1,      
       settings_tile_2      => settings_tile_2,       
@@ -488,8 +597,6 @@ begin
       step2                => step2,
       mode2                => mode2,
                                              
-      error_texMode        => open,      
-                                             
       settings_otherModes  => settings_otherModes,
       settings_tile_1      => settings_tile_1,      
       settings_tile_2      => settings_tile_2,      
@@ -519,9 +626,7 @@ begin
       clk1x                => clk1x,              
       trigger              => trigger,
       step2                => step2,
-      mode2                => mode2,      
-                                             
-      error_texMode        => open,      
+      mode2                => mode2,           
                                              
       settings_otherModes  => settings_otherModes,
       settings_tile_1      => settings_tile_1,      
@@ -546,33 +651,60 @@ begin
       tex_color            => tex_color(3)
    );
    
+   settings_tile_2 <= settings_tile1_2 when (step2 = '1') else settings_tile0_2; 
+   
    -- filtering 
+   process (all)
+   begin
+   
+      if (to_integer(frac_S_1) + to_integer(frac_T_1) >= 16#20#) then
+         frac_S_2_calc <= to_signed(16#20#, 6) - ('0' & signed(frac_S_1));
+         frac_T_2_calc <= to_signed(16#20#, 6) - ('0' & signed(frac_T_1));
+      else
+         frac_S_2_calc <= '0' & signed(frac_S_1);
+         frac_T_2_calc <= '0' & signed(frac_T_1);
+      end if;
+      
+      texmode_calc <= TEXMODE_UNFILTERED;
+      if (DISABLEFILTER = '0' and (settings_otherModes.sampleType = '1' or settings_otherModes.enTlut = '1')) then
+         if (to_integer(frac_S_1) + to_integer(frac_T_1) >= 16#20#) then
+            texmode_calc <= TEXMODE_UPPER;
+         else
+            texmode_calc <= TEXMODE_LOWER;
+         end if;
+      end if;
+         
+   end process;
+   
    process (clk1x)
    begin
       if rising_edge(clk1x) then
       
          if (trigger = '1') then
          
-            settings_tile_2 <= settings_tile_1;
+            settings_tile0_2 <= settings_tile_1;
+            frac_S_2_s1      <= frac_S_2_calc;
+            frac_T_2_s1      <= frac_T_2_calc;
+            texmode_s1       <= texmode_calc;
          
-            frac_S_2 <= '0' & signed(frac_S_1);
-            frac_T_2 <= '0' & signed(frac_T_1);
+         end if;
+         
+         if (step2 = '1') then
             
-            texmode <= TEXMODE_UNFILTERED;
-            if (DISABLEFILTER = '0' and (settings_otherModes.sampleType = '1' or settings_otherModes.enTlut = '1')) then
-               if (to_integer(frac_S_1) + to_integer(frac_T_1) >= 16#20#) then
-                  texmode <= TEXMODE_UPPER;
-                  frac_S_2 <= to_signed(16#20#, 6) - ('0' & signed(frac_S_1));
-                  frac_T_2 <= to_signed(16#20#, 6) - ('0' & signed(frac_T_1));
-               else
-                  texmode <= TEXMODE_LOWER;
-               end if;
-            end if;
-         
+            settings_tile1_2 <= settings_tile_1;
+            frac_S_2_s2      <= frac_S_2_calc;
+            frac_T_2_s2      <= frac_T_2_calc;
+            texmode_s2       <= texmode_calc;
+            
          end if;
       
       end if;
    end process;
+   
+   frac_S_2 <= frac_S_2_s2 when (step2 = '1') else frac_S_2_s1;
+   frac_T_2 <= frac_T_2_s2 when (step2 = '1') else frac_T_2_s1;
+   texmode <= texmode_s2   when (step2 = '1') else texmode_s1;
+   
    
    filter_sub1_a <= tex_color(2) when (texmode(0) = '0') else tex_color(1);
    filter_sub1_b <= tex_color(3) when (texmode(0) = '0') else tex_color(0);
@@ -595,24 +727,21 @@ begin
       end loop;
    end process;
    
+   tex_color_select(0) <= tex_color(0)(0) when (texmode = TEXMODE_UNFILTERED) else unsigned(filter_sum2(0)(7 downto 0));
+   tex_color_select(1) <= tex_color(0)(1) when (texmode = TEXMODE_UNFILTERED) else unsigned(filter_sum2(1)(7 downto 0));
+   tex_color_select(2) <= tex_color(0)(2) when (texmode = TEXMODE_UNFILTERED) else unsigned(filter_sum2(2)(7 downto 0));
+   tex_alpha_select    <= tex_color(0)(3) when (texmode = TEXMODE_UNFILTERED) else unsigned(filter_sum2(3)(7 downto 0));  
+   
    process (clk1x)
    begin
       if rising_edge(clk1x) then
       
          if (trigger = '1') then
          
-            if (texmode = TEXMODE_UNFILTERED) then
-               tex_color_out(0) <= tex_color(0)(0);
-               tex_color_out(1) <= tex_color(0)(1);
-               tex_color_out(2) <= tex_color(0)(2);
-               tex_alpha_out    <= tex_color(0)(3);
-            else
-               tex_color_out(0) <= unsigned(filter_sum2(0)(7 downto 0));
-               tex_color_out(1) <= unsigned(filter_sum2(1)(7 downto 0));
-               tex_color_out(2) <= unsigned(filter_sum2(2)(7 downto 0));
-               tex_alpha_out    <= unsigned(filter_sum2(3)(7 downto 0));
-            end if;
-            
+            tex_color_out(0) <= tex_color_select(0);
+            tex_color_out(1) <= tex_color_select(1);
+            tex_color_out(2) <= tex_color_select(2);
+            tex_alpha_out    <= tex_alpha_select;
             
             -- synthesis translate_off
             export_TexFt_addr <= exportNext_TexFt_addr; 
@@ -620,6 +749,23 @@ begin
             export_TexFt_db1  <= exportNext_TexFt_db1; 
             export_TexFt_db3  <= exportNext_TexFt_db3; 
             export_TexFt_mode <= texmode;
+            -- synthesis translate_on
+         
+         end if;
+         
+         if (step2 = '1') then
+         
+            tex2_color_out(0) <= tex_color_select(0);
+            tex2_color_out(1) <= tex_color_select(1);
+            tex2_color_out(2) <= tex_color_select(2);
+            tex2_alpha_out    <= tex_alpha_select;
+            
+            -- synthesis translate_off
+            export2_TexFt_addr <= exportNext_TexFt_addr; 
+            export2_TexFt_data <= exportNext_TexFt_data; 
+            export2_TexFt_db1  <= exportNext_TexFt_db1; 
+            export2_TexFt_db3  <= exportNext_TexFt_db3; 
+            export2_TexFt_mode <= texmode;
             -- synthesis translate_on
          
          end if;

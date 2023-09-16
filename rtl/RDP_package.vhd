@@ -238,6 +238,15 @@ package pRDP is
       Tile_maskS     : unsigned(3 downto 0);
       Tile_shiftS    : unsigned(3 downto 0);
    end record; 
+   
+   constant SETTINGSTILEINIT : tsettings_tile := 
+   (
+      Tile_clampT      => '0',
+      Tile_mirrorT     => '0',
+      Tile_clampS      => '0',
+      Tile_mirrorS     => '0',
+      others => (others => '0')
+   );  
 
    type tsettings_loadtype is
    (

@@ -22,7 +22,11 @@ entity RDP_CombineColor is
      
       pipeInColor             : in  tcolor4_s16;
       texture_color           : in  tcolor3_u8;
-      tex_alpha               : in  unsigned(7 downto 0);
+      tex_alpha               : in  unsigned(7 downto 0);      
+      texture2_color          : in  tcolor3_u8;
+      tex2_alpha              : in  unsigned(7 downto 0);
+      lod_frac                : in  unsigned(7 downto 0);
+      combine_alpha           : in  unsigned(7 downto 0);
 
       combine_color           : out tcolor3_u8
    );
@@ -78,7 +82,7 @@ begin
          case (to_integer(mode_sub1)) is
             when 0 => color_sub1(i) <= combiner_save(i);
             when 1 => color_sub1(i) <= x"00" & signed(texture_color(i));
-            when 2 => errorCombine <= '1'; -- tex2
+            when 2 => color_sub1(i) <= x"00" & signed(texture2_color(i));
             when 3 => color_sub1(i) <= x"00" & signed(primcolor(i));
             when 4 => color_sub1(i) <= pipeInColor(i);
             when 5 => color_sub1(i) <= x"00" & signed(envcolor(i));
@@ -91,7 +95,7 @@ begin
          case (to_integer(mode_sub2)) is
             when 0 => color_sub2(i) <= combiner_save(i);
             when 1 => color_sub2(i) <= x"00" & signed(texture_color(i));
-            when 2 => errorCombine <= '1'; -- tex2
+            when 2 => color_sub2(i) <= x"00" & signed(texture2_color(i));
             when 3 => color_sub2(i) <= x"00" & signed(primcolor(i));
             when 4 => color_sub2(i) <= pipeInColor(i);
             when 5 => color_sub2(i) <= x"00" & signed(envcolor(i));
@@ -104,19 +108,19 @@ begin
          case (to_integer(mode_mul)) is
             when  0 => color_mul(i) <= combiner_save(i);
             when  1 => color_mul(i) <= x"00" & signed(texture_color(i));
-            when  2 => errorCombine <= '1'; --tex2
+            when  2 => color_mul(i) <= x"00" & signed(texture2_color(i));
             when  3 => color_mul(i) <= x"00" & signed(primcolor(i));
             when  4 => color_mul(i) <= pipeInColor(i);
             when  5 => color_mul(i) <= x"00" & signed(envcolor(i));
             when  6 => errorCombine <= '1'; -- key scale
-            when  7 => errorCombine <= '1'; -- combiner color
+            when  7 => color_mul(i) <= x"00" & signed(combine_alpha);
             when  8 => color_mul(i) <= x"00" & signed(tex_alpha);
-            when  9 => errorCombine <= '1'; -- tex2 A
+            when  9 => color_mul(i) <= x"00" & signed(tex2_alpha);
             when 10 => color_mul(i) <= x"00" & signed(settings_primcolor.prim_A);
             when 11 => color_mul(i) <= pipeInColor(3);
             when 12 => color_mul(i) <= x"00" & signed(settings_envcolor.env_A);
-            when 13 => errorCombine <= '1'; -- lod frac
-            when 14 => errorCombine <= '1'; -- primlevel frac
+            when 13 => color_mul(i) <= x"00" & signed(lod_frac);
+            when 14 => color_mul(i) <= x"00" & signed(settings_primcolor.prim_levelFrac);
             when 15 => errorCombine <= '1'; -- k5
             when others => null;
          end case;
@@ -125,7 +129,7 @@ begin
          case (to_integer(mode_add)) is
             when 0 => color_add(i) <= combiner_save(i);
             when 1 => color_add(i) <= x"00" & signed(texture_color(i));
-            when 2 => errorCombine <= '1'; --tex2
+            when 2 => color_add(i) <= x"00" & signed(texture2_color(i));
             when 3 => color_add(i) <= x"00" & signed(primcolor(i));
             when 4 => color_add(i) <= pipeInColor(i);
             when 5 => color_add(i) <= x"00" & signed(envcolor(i));

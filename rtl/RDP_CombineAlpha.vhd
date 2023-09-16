@@ -22,6 +22,7 @@ entity RDP_CombineAlpha is
      
       pipeInColor             : in  tcolor4_s16;
       tex_alpha               : in  unsigned(7 downto 0);
+      tex2_alpha              : in  unsigned(7 downto 0);
       lod_frac                : in  unsigned(7 downto 0);
       cvgCount                : in  unsigned(3 downto 0);
       cvgFB                   : in  unsigned(2 downto 0);
@@ -69,7 +70,7 @@ begin
       case (to_integer(mode_sub1)) is
          when 0 => alpha_sub1 <= combine_alpha_next;
          when 1 => alpha_sub1 <= "00" & signed(tex_alpha);
-         --when 2 => tex2
+         when 2 => alpha_sub1 <= "00" & signed(tex2_alpha);
          when 3 => alpha_sub1 <= "00" & signed(settings_primcolor.prim_A);
          when 4 => alpha_sub1 <= '0' & pipeInColor(3)(8 downto 0);
          when 5 => alpha_sub1 <= "00" & signed(settings_envcolor.env_A);
@@ -82,7 +83,7 @@ begin
       case (to_integer(mode_sub2)) is
          when 0 => alpha_sub2 <= combine_alpha_next;
          when 1 => alpha_sub2 <= "00" & signed(tex_alpha);
-         --when 2 => tex2
+         when 2 => alpha_sub2 <= "00" & signed(tex2_alpha);
          when 3 => alpha_sub2 <= "00" & signed(settings_primcolor.prim_A);
          when 4 => alpha_sub2 <= '0' & pipeInColor(3)(8 downto 0);
          when 5 => alpha_sub2 <= "00" & signed(settings_envcolor.env_A);
@@ -95,11 +96,11 @@ begin
       case (to_integer(mode_mul)) is
          when 0 => alpha_mul <= "00" & signed(lod_frac);
          when 1 => alpha_mul <= "00" & signed(tex_alpha);
-         --when 2 => tex2
+         when 2 => alpha_mul <= "00" & signed(tex2_alpha);
          when 3 => alpha_mul <= "00" & signed(settings_primcolor.prim_A);
          when 4 => alpha_mul <= '0' & pipeInColor(3)(8 downto 0);
          when 5 => alpha_mul <= "00" & signed(settings_envcolor.env_A);
-         --when 6 => prim level Frac
+         when 6 => alpha_mul <= "00" & signed(settings_primcolor.prim_levelFrac);
          --when 7 => alpha_sub2 <= (others => '0');
          when others => null;
       end case;
@@ -108,7 +109,7 @@ begin
       case (to_integer(mode_add)) is
          when 0 => alpha_add <= combine_alpha_next;
          when 1 => alpha_add <= "00" & signed(tex_alpha);
-         --when 2 => tex2
+         when 2 => alpha_add <= "00" & signed(tex2_alpha);
          when 3 => alpha_add <= "00" & signed(settings_primcolor.prim_A);
          when 4 => alpha_add <= '0' & pipeInColor(3)(8 downto 0);
          when 5 => alpha_add <= "00" & signed(settings_envcolor.env_A);

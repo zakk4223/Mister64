@@ -31,6 +31,9 @@ end entity;
 
 architecture arch of RDP_TexTile is
 
+   signal coord            : signed(15 downto 0);
+   signal coord_1          : signed(15 downto 0) := (others => '0');
+
    signal shifted          : signed(15 downto 0);
             
    signal relative         : signed(15 downto 0);
@@ -58,11 +61,38 @@ architecture arch of RDP_TexTile is
    signal wrapped_index1   : unsigned(9 downto 0);
    signal wrapped_index2   : unsigned(9 downto 0);
    signal wrapped_index3   : unsigned(9 downto 0);
+   
+   signal index_calc       : unsigned(9 downto 0) := (others => '0');
+   signal index_calc_1     : unsigned(9 downto 0) := (others => '0');
+   signal index_calc_2     : unsigned(9 downto 0) := (others => '0');
+   signal index_calc_3     : unsigned(9 downto 0) := (others => '0');
+   signal index_calc_N     : unsigned(9 downto 0) := (others => '0');
+   
+   signal index_1          : unsigned(9 downto 0) := (others => '0');
+   signal index_1_N        : unsigned(9 downto 0) := (others => '0');
+   signal frac_1           : unsigned(4 downto 0) := (others => '0');   
+   
+   signal index_2          : unsigned(9 downto 0) := (others => '0');
+   signal index_2_N        : unsigned(9 downto 0) := (others => '0');
+   signal frac_2           : unsigned(4 downto 0) := (others => '0');
 
 begin 
 
-   shifted <= shift_right(coordIn, to_integer(tile_shift)) when (tile_shift < 11) else
-              coordIn sll (16 - to_integer(tile_shift));
+   coord <= coordIn; -- when (mode2 = '0') else coord_1;
+
+   process (clk1x)
+   begin
+      if rising_edge(clk1x) then
+      
+         if (trigger = '1' or step2 = '1') then
+            coord_1 <= coordIn;
+         end if;
+         
+      end if;
+   end process;
+
+   shifted <= shift_right(coord, to_integer(tile_shift)) when (tile_shift < 11) else
+              coord sll (16 - to_integer(tile_shift));
    
    relative <= shifted - to_integer(tile_min & "000");
    
@@ -112,53 +142,68 @@ begin
    wrapped_index2 <= not clamp_index2 when (wrap2 = '1') else clamp_index2;
    wrapped_index3 <= not clamp_index3 when (wrap3 = '1') else clamp_index3;
 
+   process (all)
+   begin
+            
+      index_calc   <= clamp_index;
+      index_calc_1 <= clamp_index1;
+      index_calc_2 <= clamp_index2;
+      index_calc_3 <= clamp_index3;
+      index_calc_N <= clamp_index + 1;
+      
+      if (tile_mask > 0) then
+         if (tile_mirror = '1') then
+            index_calc  <= wrapped_index  and mask;
+            index_calc_1 <= wrapped_index1 and mask;
+            index_calc_2 <= wrapped_index2 and mask;
+            index_calc_3 <= wrapped_index3 and mask;
+            
+            index_calc_N <= (wrapped_index + 1) and mask;
+            if (wrap = '1') then
+               index_calc_N <= (wrapped_index - 1) and mask;
+            end if; 
+            if (wrap = '1' and ((((wrapped_index and mask) - 1) and mask) = mask)) then index_calc_N <= wrapped_index and mask; end if;
+            if (wrap = '0' and ((wrapped_index and mask)       = mask))            then index_calc_N <= wrapped_index and mask; end if;           
+         else
+            index_calc  <= clamp_index  and mask;
+            index_calc_1 <= clamp_index1 and mask;
+            index_calc_2 <= clamp_index2 and mask;
+            index_calc_3 <= clamp_index3 and mask;
+            
+            index_calc_N <= (clamp_index + 1) and mask;
+            if (clamp_index = mask) then
+               index_calc_N  <= (others => '0');
+            end if;
+         end if;
+      end if;
+
+   end process;
+   
    process (clk1x)
    begin
       if rising_edge(clk1x) then
       
          if (trigger = '1') then
-   
-            frac_out   <= frac;
-      
-            index_out  <= clamp_index;
-            index_out1 <= clamp_index1;
-            index_out2 <= clamp_index2;
-            index_out3 <= clamp_index3;
-            
-            index_outN <= clamp_index + 1;
-            
-            if (tile_mask > 0) then
-               if (tile_mirror = '1') then
-                  index_out  <= wrapped_index  and mask;
-                  index_out1 <= wrapped_index1 and mask;
-                  index_out2 <= wrapped_index2 and mask;
-                  index_out3 <= wrapped_index3 and mask;
-                  
-                  index_outN <= (wrapped_index + 1) and mask;
-                  if (wrap = '1') then
-                     index_outN <= (wrapped_index - 1) and mask;
-                  end if; 
-                  if (wrap = '1' and ((((wrapped_index and mask) - 1) and mask) = mask)) then index_outN <= wrapped_index and mask; end if;
-                  if (wrap = '0' and ((wrapped_index and mask)       = mask))            then index_outN <= wrapped_index and mask; end if;           
-               else
-                  index_out  <= clamp_index  and mask;
-                  index_out1 <= clamp_index1 and mask;
-                  index_out2 <= clamp_index2 and mask;
-                  index_out3 <= clamp_index3 and mask;
-                  
-                  index_outN <= (clamp_index + 1) and mask;
-                  if (clamp_index = mask) then
-                     index_outN  <= (others => '0');
-                  end if;
-               end if;
-            end if;
+            frac_1     <= frac;
+            index_1    <= index_calc;
+            index_out1 <= index_calc_1;
+            index_out2 <= index_calc_2;
+            index_out3 <= index_calc_3;
+            index_1_N  <= index_calc_N;
+         end if;
          
+         if (step2 = '1') then
+            frac_2     <= frac;
+            index_2    <= index_calc;
+            index_2_N  <= index_calc_N;
          end if;
       
       end if;
    end process;
    
-   
+   frac_out   <= frac_2    when (step2 = '1') else frac_1;   
+   index_out  <= index_2   when (step2 = '1') else index_1;  
+   index_outN <= index_2_N when (step2 = '1') else index_1_N;
    
 end architecture;
 

@@ -196,6 +196,7 @@ begin
                      
                         tile_Command           <= std_logic_vector(CommandData(26 downto 24));
                         tile_usePipe           <= '1';
+                        settings_poly.tile     <= CommandData(26 downto 24);
                         settings_poly.lft      <= '1';
                         settings_poly.YL       <= "000" & signed(CommandData(43 downto 32));
                         settings_poly.YM       <= "000" & signed(CommandData(43 downto 32));
